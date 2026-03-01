@@ -72,38 +72,57 @@ struct ContentView: View {
                 // Normal Monitoring UI
                 ScrollView {
                     VStack(spacing: 8) {
-                        // Large Status Icon
                         Image(systemName: isActive ? "bolt.shield.fill" : "shield.slash")
                             .font(.system(size: 35))
                             .foregroundColor(isActive ? .green : .gray)
                             .symbolEffect(.pulse, isActive: isActive)
-                        
+
                         Text(isActive ? "Monitoring Gait" : "Guard is Off")
                             .font(.system(.caption, design: .rounded).bold())
-                        
-                        // Connection hint when not active
+
                         if !isActive {
                             Text("Open iPhone app to sync data")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                                 .padding(.top, 2)
                         }
-                        
-                        // Battery warning
+
+                        // Live step data when monitoring
+                        if isActive {
+                            HStack(spacing: 12) {
+                                VStack(spacing: 2) {
+                                    Text("\(engine.currentSteps)")
+                                        .font(.system(.title3, design: .rounded).bold())
+                                    Text("Steps")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                if let cadence = engine.currentCadence, cadence > 0 {
+                                    VStack(spacing: 2) {
+                                        Text(String(format: "%.0f", cadence * 60))
+                                            .font(.system(.title3, design: .rounded).bold())
+                                        Text("Steps/min")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+
                         if engine.monitoringStoppedDueToBattery {
-                            Text("Battery Low - Monitoring Stopped")
+                            Text("Battery Low - Stopped")
                                 .font(.caption)
                                 .foregroundColor(.red)
                                 .padding(.top, 4)
                         }
-                        
-                // Show calibration status if available
-                if engine.hasCalibrationData() {
-                    Text("Calibrated")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                        .padding(.top, 4)
-                } else if engine.isCalibrationUnstable() {
+
+                        if engine.hasCalibrationData() {
+                            Text("Calibrated")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                                .padding(.top, 2)
+                        } else if engine.isCalibrationUnstable() {
                             VStack(spacing: 4) {
                                 Text("Calibration Unstable")
                                     .font(.caption)
@@ -114,22 +133,15 @@ struct ContentView: View {
                             }
                             .padding(.top, 4)
                         }
-                        
-                        // Buttons
-                        // The Start/Stop Button
+
                         Button(action: {
                             isActive.toggle()
                             if isActive {
-                                // 2. Trigger the Background Session FIRST
                                 sessionManager.startSession()
-                                // Start GaitTrackingManager for background persistence
                                 gaitTrackingManager.startTracking()
-                                // Then start your 50Hz logic
                                 engine.startMonitoring()
                             } else {
-                                // Stop tracking
                                 gaitTrackingManager.stopTracking()
-                                // 3. Optional: Add a stopSession() to your manager if you want to save battery
                                 engine.stopMonitoring()
                             }
                         }) {
@@ -140,8 +152,7 @@ struct ContentView: View {
                         .tint(isActive ? .red : .blue)
                         .buttonStyle(.borderedProminent)
                         .padding(.horizontal)
-                        
-                        // Calibration Button - Compact version
+
                         Button(action: {
                             engine.startCalibration()
                         }) {

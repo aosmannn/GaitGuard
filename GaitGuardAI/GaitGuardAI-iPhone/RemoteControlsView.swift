@@ -93,70 +93,42 @@ struct RemoteControlsView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.blue)
                     .disabled(!connectivityManager.isWatchReachable)
-                    
+
                     if showTestSuccess {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                Text("Haptic sent to watch!")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                            }
-                            if testLatency > 0 {
-                                Text("Response time: \(String(format: "%.0f", testLatency * 1000))ms")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Haptic sent to watch!")
+                                .font(.caption)
+                                .foregroundColor(.green)
                         }
                         .transition(.opacity)
                     }
-                    
+
                     if showTestError {
                         HStack {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.red)
-                            Text("Watch not connected")
+                            Text("Watch not reachable")
                                 .font(.caption)
                                 .foregroundColor(.red)
                         }
                         .transition(.opacity)
                     }
-                    
+
                     if !connectivityManager.isWatchReachable {
                         VStack(alignment: .leading, spacing: 4) {
-                            if connectivityManager.activationState == .notActivated {
-                                Text("Initializing connection...")
+                            if connectivityManager.isWatchConnected {
+                                Text("Open the GaitGuardAI app on your watch")
                                     .font(.caption)
                                     .foregroundColor(.orange)
-                            } else if connectivityManager.isWatchConnected {
-                                if let startTime = connectivityManager.sessionStartTime {
-                                    let elapsed = Date().timeIntervalSince(startTime)
-                                    if elapsed < 60 && connectivityManager.sessionActivated {
-                                        Text("Waiting for watch app to become reachable...")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                        Text("This can take up to 60 seconds after launch")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    } else {
-                                        Text("Watch app must be running on your watch")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                    }
-                                } else {
-                                    Text("Watch app must be running on your watch")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                }
                             } else {
-                                Text("Connect your watch to test")
+                                Text("Pair your watch to test haptics")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
-                            
                             #if targetEnvironment(simulator)
-                            Text("⚠️ Simulator detected - WatchConnectivity requires physical devices")
+                            Text("Simulator: WatchConnectivity requires physical devices")
                                 .font(.caption2)
                                 .foregroundColor(.red)
                             #endif

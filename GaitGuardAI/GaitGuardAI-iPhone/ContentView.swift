@@ -32,18 +32,42 @@ struct ContentView: View {
 struct EventsListView: View {
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
     @State private var timer: Timer?
-    
+
+    private var connectionIcon: String {
+        if connectivityManager.isWatchReachable {
+            return "applewatch.radiowaves.left.and.right"
+        } else if connectivityManager.isWatchConnected {
+            return "applewatch"
+        } else {
+            return "applewatch.slash"
+        }
+    }
+
+    private var connectionColor: Color {
+        if connectivityManager.isWatchReachable { return .green }
+        if connectivityManager.isWatchConnected { return .orange }
+        return .red
+    }
+
+    private var connectionTitle: String {
+        if connectivityManager.isWatchReachable { return "Watch Connected" }
+        if connectivityManager.isWatchConnected { return "Watch Paired" }
+        if connectivityManager.activationState == .notActivated { return "Connecting..." }
+        return "Watch Not Paired"
+    }
+
     var body: some View {
         NavigationView {
             List {
                 // Connection Status Section
                 Section {
                     HStack {
-                        Image(systemName: connectivityManager.isWatchReachable ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundColor(connectivityManager.isWatchReachable ? .green : .red)
+                        Image(systemName: connectionIcon)
+                            .foregroundColor(connectionColor)
+                            .font(.title2)
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Text(connectivityManager.isWatchReachable ? "Watch Connected" : "Watch Disconnected")
+                                Text(connectionTitle)
                                     .font(.headline)
                                 Button(action: {
                                     connectivityManager.updateConnectionStatus()
@@ -53,25 +77,32 @@ struct EventsListView: View {
                                 }
                                 .buttonStyle(.plain)
                             }
-                            
+
+                            // Monitoring status
+                            if connectivityManager.isWatchMonitoring {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "bolt.shield.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                    Text("Monitoring active")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                    if let steps = connectivityManager.latestStepData {
+                                        Text("· \(steps.stepCount) steps")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.top, 1)
+                            }
+
                             // Heartbeat indicator
                             if connectivityManager.isWatchReachable, let lastHeartbeat = connectivityManager.lastHeartbeatTime {
                                 HStack(spacing: 4) {
                                     Circle()
                                         .fill(Color.green)
                                         .frame(width: 8, height: 8)
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color.green.opacity(0.3), lineWidth: 2)
-                                                .scaleEffect(1.5)
-                                                .opacity(1.0)
-                                                .animation(
-                                                    Animation.easeInOut(duration: 1.0)
-                                                        .repeatForever(autoreverses: true),
-                                                    value: connectivityManager.lastHeartbeatTime
-                                                )
-                                        )
-                                    Text("Last updated: \(lastHeartbeat, style: .relative)")
+                                    Text("Heartbeat: \(lastHeartbeat, style: .relative)")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                     if connectivityManager.heartbeatLatency > 0 {
@@ -80,10 +111,10 @@ struct EventsListView: View {
                                             .foregroundColor(.secondary)
                                     }
                                 }
-                                .padding(.top, 2)
+                                .padding(.top, 1)
                             }
-                            
-                            // Show calibration status if active
+
+                            // Calibration status
                             if connectivityManager.isWatchCalibrating {
                                 HStack(spacing: 4) {
                                     Image(systemName: "waveform.path")
@@ -93,78 +124,46 @@ struct EventsListView: View {
                                         .font(.caption)
                                         .foregroundColor(.orange)
                                 }
-                                .padding(.top, 2)
-                            } else if let lastEvent = connectivityManager.lastEventTime {
-                                Text("Last event: \(lastEvent, style: .relative)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
+                                .padding(.top, 1)
+                            }
+
+                            // Status detail
+                            if !connectivityManager.isWatchReachable {
                                 if !connectivityManager.isWatchConnected {
                                     if connectivityManager.activationState == .notActivated {
                                         Text("Initializing connection...")
                                             .font(.caption)
                                             .foregroundColor(.orange)
                                     } else {
-                                        Text("Watch not paired with iPhone")
+                                        Text("Pair your Apple Watch in the Watch app")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
-                                } else if !connectivityManager.isWatchReachable {
-                                    // Check how long since activation started
-                                    if let startTime = connectivityManager.sessionStartTime {
-                                        let elapsed = Date().timeIntervalSince(startTime)
-                                        if elapsed < 60 && connectivityManager.sessionActivated {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text("Waiting for watch app... (up to 60s)")
-                                                    .font(.caption)
-                                                    .foregroundColor(.orange)
-                                                Text("Make sure the watch app is open")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        } else {
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text("Watch paired but not reachable")
-                                                    .font(.caption)
-                                                    .foregroundColor(.orange)
-                                                Text("Open the GaitGuardAI app on your watch")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                        }
-                                    } else {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text("Watch paired but not reachable")
-                                                .font(.caption)
-                                                .foregroundColor(.orange)
-                                            Text("Open the GaitGuardAI app on your watch")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-                                        }
-                                    }
                                 } else {
-                                    Text("No events received yet")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Open GaitGuardAI on your watch")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                        Text("Watch app must be visible on screen")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
+                            } else if let lastEvent = connectivityManager.lastEventTime {
+                                Text("Last event: \(lastEvent, style: .relative)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else if !connectivityManager.isWatchMonitoring {
+                                Text("Tap START on watch to begin monitoring")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
                         }
                         Spacer()
-                        if connectivityManager.watchSessionActive {
+                        if connectivityManager.isWatchReachable {
                             Circle()
                                 .fill(connectivityManager.isWatchCalibrating ? Color.orange : Color.green)
                                 .frame(width: 12, height: 12)
-                                .overlay(
-                                    Circle()
-                                        .stroke((connectivityManager.isWatchCalibrating ? Color.orange : Color.green).opacity(0.3), lineWidth: 2)
-                                        .scaleEffect(1.5)
-                                        .opacity(connectivityManager.isWatchReachable ? 1 : 0)
-                                        .animation(
-                                            Animation.easeInOut(duration: 1.5)
-                                                .repeatForever(autoreverses: true),
-                                            value: connectivityManager.isWatchReachable
-                                        )
-                                )
                         }
                     }
                 } header: {

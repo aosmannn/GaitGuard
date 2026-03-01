@@ -5,46 +5,41 @@ import SwiftUI
 import Combine
 import WatchConnectivity
 
-// NOTE: You may see a warning about reading com.apple.CoreMotion.plist
-// This is a harmless system-level warning that occurs when CoreMotion framework
-// tries to read managed preferences. Apps don't have permission to access these
-// system files, but CoreMotion handles this gracefully and continues to work.
-// Error code 257 (NSCocoaErrorDomain) indicates permission denied, which is expected.
-// This warning can be safely ignored and does not affect app functionality.
-
 class MotionDetector: ObservableObject {
     @Published var isCalibrating = false
-    @Published var calibrationProgress: Double = 0.0 // 0.0 to 1.0
-    @Published var calibrationTimeRemaining: Int = 30 // seconds
+    @Published var calibrationProgress: Double = 0.0
+    @Published var calibrationTimeRemaining: Int = 30
     @Published var batteryLow: Bool = false
     @Published var monitoringStoppedDueToBattery: Bool = false
-    
+    @Published var isMonitoring = false
+    @Published var currentSteps: Int = 0
+    @Published var currentCadence: Double?
+    @Published var currentDistance: Double?
+
     private let motionManager = CMMotionManager()
+    private let pedometer = CMPedometer()
     private var baselineMagnitude: Double = 1.0
     private var magnitudeHistory: [Double] = []
-    private let historySize = 100 // Keep last 100 samples for baseline
+    private let historySize = 100
     private var freezeStartTime: Date?
     private var lastFreezeTime: Date?
     private var consecutiveFreezes = 0
-    private var lastHapticTime: Date? // For haptic fatigue prevention
-    private let hapticCooldownPeriod: TimeInterval = 2.5 // 2.5 seconds between haptics
-    
+    private var lastHapticTime: Date?
+    private let hapticCooldownPeriod: TimeInterval = 2.5
+    private var stepDataTimer: Timer?
+
     // Calibration data
     private var calibrationData: [Double] = []
     private var calibrationStartTime: Date?
     private var calibrationTimer: Timer?
-    
-    // Calibration constants
-    private let calibrationDuration: TimeInterval = 30.0 // 30 seconds
+
+    private let calibrationDuration: TimeInterval = 30.0
     private let calibrationDataKey = "gaitguard.calibrationData"
     private let calibrationAverageKey = "gaitguard.calibrationAverage"
     private let calibrationStdDevKey = "gaitguard.calibrationStdDev"
-    
+
     init() {
         loadCalibrationData()
-        // Suppress CoreMotion preference reading warnings
-        // This is a harmless system-level warning that occurs when CoreMotion
-        // tries to read managed preferences (which apps don't have access to)
         setupMotionManager()
     }
     
@@ -314,40 +309,37 @@ class MotionDetector: ObservableObject {
     
     func startMonitoring() {
         guard motionManager.isAccelerometerAvailable else { return }
-        
-        // Battery safety check
+
         if checkBatteryLevel() {
             monitoringStoppedDueToBattery = true
-            WKInterfaceDevice.current().play(.failure) // Alert haptic
+            WKInterfaceDevice.current().play(.failure)
             return
         }
-        
+
         monitoringStoppedDueToBattery = false
-        
-        // Start heartbeat when monitoring starts
+        isMonitoring = true
+
         WatchConnectivityManager.shared.startHeartbeat()
-        
-        motionManager.accelerometerUpdateInterval = 1.0 / 50.0 // 50Hz
-        
-        // Counter for throttling live data streaming (10Hz = every 5th sample)
+        WatchConnectivityManager.shared.sendMonitoringState(isMonitoring: true)
+
+        startStepCounting()
+
+        motionManager.accelerometerUpdateInterval = 1.0 / 50.0
+
         var sampleCounter = 0
-        
+
         motionManager.startAccelerometerUpdates(to: .main) { [weak self] data, error in
             if let error = error {
-                // Suppress harmless CoreMotion preference reading errors
-                // These are system-level warnings that don't affect functionality
                 #if DEBUG
                 if (error as NSError).code != 257 {
-                    // Only log non-permission errors
                     print("[MotionDetector] Accelerometer error: \(error.localizedDescription)")
                 }
                 #endif
                 return
             }
             guard let data = data else { return }
-            
-            // Periodic battery check (every 60 seconds worth of samples at 50Hz = 3000 samples)
-            if let self = self, self.magnitudeHistory.count % 3000 == 0 {
+
+            if let self = self, self.magnitudeHistory.count % 3000 == 0, self.magnitudeHistory.count > 0 {
                 if self.checkBatteryLevel() {
                     self.stopMonitoring()
                     self.monitoringStoppedDueToBattery = true
@@ -355,37 +347,30 @@ class MotionDetector: ObservableObject {
                     return
                 }
             }
-            
-            let x = data.acceleration.x
-            let y = data.acceleration.y
-            let z = data.acceleration.z
-            let magnitude = sqrt(x*x + y*y + z*z)
-            
+
+            let ax = data.acceleration.x
+            let ay = data.acceleration.y
+            let az = data.acceleration.z
+            let magnitude = sqrt(ax * ax + ay * ay + az * az)
+
             self?.updateBaseline(magnitude)
-            
-            // Stream live data to iPhone (throttled to 10Hz to avoid overwhelming connection)
+
             sampleCounter += 1
-            if sampleCounter % 5 == 0 { // 50Hz / 5 = 10Hz
+            if sampleCounter % 5 == 0 {
                 WatchConnectivityManager.shared.sendAccelerometerData(
-                    x: x,
-                    y: y,
-                    z: z,
-                    timestamp: Date()
+                    x: ax, y: ay, z: az, timestamp: Date()
                 )
             }
-            
-            // Detect freeze (start event)
+
             if magnitude > self?.adaptiveThreshold ?? 1.3 {
                 self?.handleFreeze(magnitude: magnitude)
             }
         }
-        
-        // Also monitor gyroscope for turn detection
+
         if motionManager.isGyroAvailable {
             motionManager.gyroUpdateInterval = 1.0 / 50.0
             motionManager.startGyroUpdates(to: .main) { [weak self] gyroData, error in
                 if let error = error {
-                    // Suppress harmless CoreMotion preference reading errors
                     #if DEBUG
                     if (error as NSError).code != 257 {
                         print("[MotionDetector] Gyroscope error: \(error.localizedDescription)")
@@ -394,13 +379,12 @@ class MotionDetector: ObservableObject {
                     return
                 }
                 guard let gyroData = gyroData else { return }
-                
-                // Get current magnitude for turn detection
+
                 if let accelData = self?.motionManager.accelerometerData {
-                    let x = accelData.acceleration.x
-                    let y = accelData.acceleration.y
-                    let z = accelData.acceleration.z
-                    let magnitude = sqrt(x*x + y*y + z*z)
+                    let ax = accelData.acceleration.x
+                    let ay = accelData.acceleration.y
+                    let az = accelData.acceleration.z
+                    let magnitude = sqrt(ax * ax + ay * ay + az * az)
                     self?.detectTurn(gyroData: gyroData, magnitude: magnitude)
                 }
             }
@@ -413,14 +397,58 @@ class MotionDetector: ObservableObject {
         freezeStartTime = nil
         lastFreezeTime = nil
         consecutiveFreezes = 0
-        
-        // Stop heartbeat when monitoring stops
+        isMonitoring = false
+
+        stopStepCounting()
         WatchConnectivityManager.shared.stopHeartbeat()
-        
-        // Stop calibration if running
+        WatchConnectivityManager.shared.sendMonitoringState(isMonitoring: false)
+
         if isCalibrating {
             stopCalibration()
         }
+    }
+
+    // MARK: - Step Counting
+
+    private func startStepCounting() {
+        guard CMPedometer.isStepCountingAvailable() else {
+            #if DEBUG
+            print("[MotionDetector] Step counting not available")
+            #endif
+            return
+        }
+
+        currentSteps = 0
+        currentCadence = nil
+        currentDistance = nil
+
+        pedometer.startUpdates(from: Date()) { [weak self] data, error in
+            guard let self = self, let data = data else { return }
+            DispatchQueue.main.async {
+                self.currentSteps = data.numberOfSteps.intValue
+                self.currentCadence = data.currentCadence?.doubleValue
+                self.currentDistance = data.distance?.doubleValue
+            }
+        }
+
+        stepDataTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            WatchConnectivityManager.shared.sendStepData(
+                stepCount: self.currentSteps,
+                cadence: self.currentCadence,
+                distance: self.currentDistance
+            )
+        }
+
+        #if DEBUG
+        print("[MotionDetector] Step counting started")
+        #endif
+    }
+
+    private func stopStepCounting() {
+        pedometer.stopUpdates()
+        stepDataTimer?.invalidate()
+        stepDataTimer = nil
     }
     
     // MARK: - Baseline & Adaptive Threshold

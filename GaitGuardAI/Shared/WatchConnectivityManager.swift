@@ -31,6 +31,14 @@ struct CalibrationResults: Codable {
     let timestamp: Date
 }
 
+// Step data from CMPedometer
+struct StepData: Codable {
+    let stepCount: Int
+    let cadence: Double?
+    let distance: Double?
+    let timestamp: Date
+}
+
 // Settings that can be controlled from iPhone
 struct WatchSettings: Codable {
     var hapticIntensity: Double = 1.0 // 0.0 to 1.0
@@ -42,7 +50,7 @@ struct WatchSettings: Codable {
 
 final class WatchConnectivityManager: NSObject, ObservableObject {
     static let shared = WatchConnectivityManager()
-    
+
     @Published var assistEvents: [AssistEvent] = []
     @Published var isWatchConnected = false
     @Published var isWatchReachable = false
@@ -53,20 +61,22 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     @Published var calibrationProgress: Double = 0.0
     @Published var calibrationTimeRemaining: Int = 30
     @Published var lastHeartbeatTime: Date?
-    @Published var heartbeatLatency: TimeInterval = 0.0 // Time taken for heartbeat round-trip
+    @Published var heartbeatLatency: TimeInterval = 0.0
     @Published var sessionActivated = false
     @Published var activationState: WCSessionActivationState = .notActivated
-    @Published var sessionStartTime: Date? // Track when session activation started
-    @Published var liveAccelerometerData: [AccelerometerData] = [] // Live data for Analytics view
-    @Published var lastCalibrationResults: CalibrationResults? // Latest calibration results
-    
+    @Published var sessionStartTime: Date?
+    @Published var liveAccelerometerData: [AccelerometerData] = []
+    @Published var lastCalibrationResults: CalibrationResults?
+    @Published var isWatchMonitoring = false
+    @Published var latestStepData: StepData?
+
     private let session: WCSession?
     private var heartbeatTimer: Timer?
-    var wcSession: WCSession? { session } // Public accessor for session
+    var wcSession: WCSession? { session }
     private let eventsKey = "gaitguard.assistEvents"
     private let settingsKey = "gaitguard.watchSettings"
-    private var pendingEvents: [AssistEvent] = [] // Queue for offline sync
-    private let maxLiveDataPoints = 500 // Keep last 500 data points for visualization
+    private var pendingEvents: [AssistEvent] = []
+    private let maxLiveDataPoints = 500
     
     override init() {
         if WCSession.isSupported() {
@@ -111,21 +121,28 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         sendSettingsToWatch()
     }
     
-    private     func sendSettingsToWatch() {
+    private func sendSettingsToWatch() {
         guard let session = session, session.activationState == .activated else {
             #if DEBUG
             print("[GaitGuard] ⚠️ Cannot send settings: WCSession not activated")
             #endif
             return
         }
-        guard session.isReachable else {
-            #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot send settings: Watch not reachable")
-            #endif
-            return
-        }
+
         if let data = try? JSONEncoder().encode(watchSettings) {
-            session.sendMessage(["watchSettings": data], replyHandler: nil)
+            if session.isReachable {
+                session.sendMessage(
+                    ["watchSettings": data],
+                    replyHandler: nil,
+                    errorHandler: { error in
+                        #if DEBUG
+                        print("[GaitGuard] ⚠️ Settings send error: \(error.localizedDescription)")
+                        #endif
+                    }
+                )
+            } else {
+                try? session.updateApplicationContext(["watchSettings": data])
+            }
         }
     }
     
@@ -206,7 +223,6 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     
     func sendAssistEvent(type: String, severity: Double = 0.5, duration: TimeInterval? = nil) {
         guard let session = session, session.activationState == .activated else {
-            // Queue for later if no session or not activated
             let event = AssistEvent(timestamp: Date(), type: type, severity: severity, duration: duration)
             pendingEvents.append(event)
             #if DEBUG
@@ -214,47 +230,110 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
             #endif
             return
         }
-        
+
         let event = AssistEvent(timestamp: Date(), type: type, severity: severity, duration: duration)
-        
+
         #if DEBUG
         #if os(watchOS)
-        print("[GaitGuard] Watch → Assist event sent: \(type) (severity: \(String(format: "%.2f", severity)))")
+        print("[GaitGuard] Watch → Assist event: \(type) (severity: \(String(format: "%.2f", severity)))")
         #endif
         #endif
-        
+
         guard let data = try? JSONEncoder().encode(event) else { return }
-        
-        #if os(watchOS)
+
         if session.isReachable {
-            session.sendMessage(["assistEvent": data], replyHandler: nil)
+            session.sendMessage(
+                ["assistEvent": data],
+                replyHandler: nil,
+                errorHandler: { [weak self] error in
+                    self?.pendingEvents.append(event)
+                    #if DEBUG
+                    print("[GaitGuard] ⚠️ Event send error, queued: \(error.localizedDescription)")
+                    #endif
+                }
+            )
         } else {
-            // Queue for later sync
             pendingEvents.append(event)
-            // Fallback: update application context
             try? session.updateApplicationContext(["assistEvent": data])
         }
-        #else
-        if session.isReachable || session.isPaired {
-            if session.isReachable {
-                session.sendMessage(["assistEvent": data], replyHandler: nil)
-            } else {
-                try? session.updateApplicationContext(["assistEvent": data])
-            }
-        }
-        #endif
     }
     
     private func syncPendingEvents() {
-        guard let session = session, session.isReachable, !pendingEvents.isEmpty else { return }
-        
-        for event in pendingEvents {
+        guard let session = session,
+              session.activationState == .activated,
+              session.isReachable,
+              !pendingEvents.isEmpty else { return }
+
+        let eventsToSync = pendingEvents
+        pendingEvents.removeAll()
+
+        for event in eventsToSync {
             if let data = try? JSONEncoder().encode(event) {
-                session.sendMessage(["assistEvent": data], replyHandler: nil)
+                session.sendMessage(
+                    ["assistEvent": data],
+                    replyHandler: nil,
+                    errorHandler: { [weak self] error in
+                        self?.pendingEvents.append(event)
+                        #if DEBUG
+                        print("[GaitGuard] ⚠️ Pending event sync error: \(error.localizedDescription)")
+                        #endif
+                    }
+                )
             }
         }
-        pendingEvents.removeAll()
+
+        #if DEBUG
+        print("[GaitGuard] Synced \(eventsToSync.count) pending events")
+        #endif
     }
+
+    // MARK: - Monitoring State Sync
+
+    #if os(watchOS)
+    func sendMonitoringState(isMonitoring: Bool) {
+        guard let session = session, session.activationState == .activated else { return }
+
+        let payload: [String: Any] = ["monitoringState": isMonitoring]
+
+        if session.isReachable {
+            session.sendMessage(
+                payload,
+                replyHandler: nil,
+                errorHandler: { error in
+                    #if DEBUG
+                    print("[GaitGuard] ⚠️ Monitoring state send error: \(error.localizedDescription)")
+                    #endif
+                }
+            )
+        }
+        try? session.updateApplicationContext(payload)
+    }
+
+    func sendStepData(stepCount: Int, cadence: Double?, distance: Double?) {
+        guard let session = session, session.activationState == .activated else { return }
+
+        let data = StepData(
+            stepCount: stepCount,
+            cadence: cadence,
+            distance: distance,
+            timestamp: Date()
+        )
+
+        guard let encoded = try? JSONEncoder().encode(data) else { return }
+
+        if session.isReachable {
+            session.sendMessage(
+                ["stepData": encoded],
+                replyHandler: nil,
+                errorHandler: { error in
+                    #if DEBUG
+                    print("[GaitGuard] ⚠️ Step data send error: \(error.localizedDescription)")
+                    #endif
+                }
+            )
+        }
+    }
+    #endif
     
     // MARK: - iPhone (receive + store)
     
@@ -302,25 +381,24 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     
     #if os(watchOS)
     func sendAccelerometerData(x: Double, y: Double, z: Double, timestamp: Date) {
-        guard let session = session, session.activationState == .activated else { return }
-        
+        guard let session = session, session.activationState == .activated,
+              session.isReachable else { return }
+
         let data = AccelerometerData(x: x, y: y, z: z, timestamp: timestamp)
-        
         guard let encoded = try? JSONEncoder().encode(data) else { return }
-        
-        if session.isReachable {
-            session.sendMessage(["accelerometerData": encoded], replyHandler: nil)
-        } else {
-            // Queue for later if not reachable
-            // Note: For live streaming, we might want to drop old data if queue gets too large
-        }
+
+        session.sendMessage(
+            ["accelerometerData": encoded],
+            replyHandler: nil,
+            errorHandler: { _ in }
+        )
     }
     #endif
     
     func sendCalibrationResults(average: Double, standardDeviation: Double, baselineThreshold: Double, sampleCount: Int) {
         #if os(watchOS)
         guard let session = session, session.activationState == .activated else { return }
-        
+
         let results = CalibrationResults(
             average: average,
             standardDeviation: standardDeviation,
@@ -328,58 +406,50 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
             sampleCount: sampleCount,
             timestamp: Date()
         )
-        
+
         guard let encoded = try? JSONEncoder().encode(results) else { return }
-        
+
         if session.isReachable {
-            session.sendMessage(["calibrationResults": encoded], replyHandler: nil)
+            session.sendMessage(
+                ["calibrationResults": encoded],
+                replyHandler: nil,
+                errorHandler: { error in
+                    try? session.updateApplicationContext(["calibrationResults": encoded])
+                    #if DEBUG
+                    print("[GaitGuard] ⚠️ Calibration results fallback to context: \(error.localizedDescription)")
+                    #endif
+                }
+            )
         } else {
-            // Try application context as fallback
             try? session.updateApplicationContext(["calibrationResults": encoded])
         }
-        
+
         #if DEBUG
-        print("[GaitGuard] Watch → Calibration results sent: avg=\(String(format: "%.3f", average)), stdDev=\(String(format: "%.3f", standardDeviation)), threshold=\(String(format: "%.3f", baselineThreshold))")
+        print("[GaitGuard] Watch → Calibration results sent: avg=\(String(format: "%.3f", average)), threshold=\(String(format: "%.3f", baselineThreshold))")
         #endif
         #endif
     }
     
     // MARK: - Test Haptic
-    
+
     func testHaptic() {
-        // Update connection status first
         updateConnectionStatus()
-        
-        guard let session = session else {
+
+        guard let session = session,
+              session.activationState == .activated,
+              session.isReachable else {
             #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot test haptic: WCSession not available")
+            print("[GaitGuard] ⚠️ Cannot test haptic: session not ready")
             #endif
             return
         }
-        
-        // Check if session is activated
-        guard session.activationState == .activated else {
-            #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot test haptic: WCSession not activated")
-            #endif
-            return
-        }
-        
-        // Check if actually reachable
-        guard session.isReachable else {
-            #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot test haptic: Watch not reachable")
-            #endif
-            return
-        }
-        
-        // Send test haptic with reply handler to confirm it was received
+
         session.sendMessage(
             ["testHaptic": true],
-            replyHandler: { reply in
-                // Watch confirmed receipt
+            replyHandler: nil,
+            errorHandler: { error in
                 #if DEBUG
-                print("[GaitGuard] ✅ Test haptic confirmed by watch")
+                print("[GaitGuard] ⚠️ Test haptic error: \(error.localizedDescription)")
                 #endif
             }
         )
@@ -394,90 +464,67 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
             #endif
             return
         }
-        guard session.isReachable else {
-            #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot reset: Watch not reachable")
-            #endif
-            return
+
+        if session.isReachable {
+            session.sendMessage(
+                ["resetToFactory": true],
+                replyHandler: nil,
+                errorHandler: { error in
+                    #if DEBUG
+                    print("[GaitGuard] ⚠️ Reset send error: \(error.localizedDescription)")
+                    #endif
+                }
+            )
+        } else {
+            try? session.updateApplicationContext(["resetToFactory": true])
         }
-        session.sendMessage(["resetToFactory": true], replyHandler: nil)
-        
+
         #if DEBUG
-        print("[GaitGuard] Reset to factory settings sent to watch")
+        print("[GaitGuard] Reset to factory settings sent")
         #endif
     }
     
     // MARK: - Heartbeat System
-    
+
     func startHeartbeat() {
-        stopHeartbeat() // Stop any existing heartbeat
-        
+        stopHeartbeat()
+
         #if os(watchOS)
-        // Watch sends heartbeat to iPhone
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             self?.sendHeartbeat()
         }
-        #else
-        // iPhone receives heartbeat and responds
-        // Heartbeat is started when monitoring starts on watch
         #endif
-        
+
         #if DEBUG
         print("[GaitGuard] Heartbeat started")
         #endif
     }
-    
+
     func stopHeartbeat() {
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
     }
-    
+
     private func sendHeartbeat() {
         #if os(watchOS)
-        guard let session = session, session.activationState == .activated else {
-            #if DEBUG
-            print("[GaitGuard] Watch → Heartbeat skipped (session not activated)")
-            #endif
-            return
-        }
-        guard session.isReachable else {
-            #if DEBUG
-            print("[GaitGuard] Watch → Heartbeat skipped (not reachable)")
-            #endif
-            return
-        }
-        
-        let timestamp = Date()
+        guard let session = session, session.activationState == .activated,
+              session.isReachable else { return }
+
         let heartbeatData: [String: Any] = [
-            "type": "heartbeat",
-            "timestamp": timestamp.timeIntervalSince1970
+            "heartbeat": Date().timeIntervalSince1970
         ]
-        
-        session.sendMessage(heartbeatData, replyHandler: { [weak self] reply in
-            // iPhone confirmed receipt
-            let latency = Date().timeIntervalSince(timestamp)
-            DispatchQueue.main.async {
-                self?.heartbeatLatency = latency
+
+        session.sendMessage(
+            heartbeatData,
+            replyHandler: nil,
+            errorHandler: { error in
+                #if DEBUG
+                print("[GaitGuard] ⚠️ Heartbeat error: \(error.localizedDescription)")
+                #endif
             }
-            #if DEBUG
-            print("[GaitGuard] Watch → Heartbeat confirmed (latency: \(String(format: "%.3f", latency))s)")
-            #endif
-        })
-        
-        #if DEBUG
-        print("[GaitGuard] Watch → Heartbeat sent")
-        #endif
+        )
         #endif
     }
-    
-    #if os(watchOS)
-    private func getMotionDetector() -> MotionDetector? {
-        // This is a helper to access MotionDetector from WatchConnectivityManager
-        // In practice, you'd pass a reference or use a different pattern
-        // For now, we'll use the direct haptic method
-        return nil
-    }
-    #endif
 }
 
 // MARK: - WCSessionDelegate
@@ -490,95 +537,123 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 print("[GaitGuard] ❌ WCSession activation failed: \(error.localizedDescription)")
                 #endif
             } else {
-                switch activationState {
-                case .activated:
-                    if let startTime = self?.sessionStartTime {
-                        let activationTime = Date().timeIntervalSince(startTime)
-                        #if DEBUG
-                        print("[GaitGuard] ✅ WCSession activated successfully (took \(String(format: "%.1f", activationTime))s)")
-                        #endif
-                    } else {
-                        #if DEBUG
-                        print("[GaitGuard] ✅ WCSession activated successfully")
-                        #endif
-                    }
-                    // Note: Even after activation, isReachable may take up to 60 seconds
-                    // This is normal WatchConnectivity behavior
-                case .notActivated:
-                    #if DEBUG
-                    print("[GaitGuard] ⚠️ WCSession not activated - still initializing")
-                    #endif
-                case .inactive:
-                    #if DEBUG
-                    print("[GaitGuard] ⚠️ WCSession is inactive")
-                    #endif
-                @unknown default:
-                    #if DEBUG
-                    print("[GaitGuard] ⚠️ WCSession in unknown state")
-                    #endif
+                #if DEBUG
+                if let startTime = self?.sessionStartTime {
+                    let elapsed = Date().timeIntervalSince(startTime)
+                    print("[GaitGuard] ✅ WCSession activated (took \(String(format: "%.1f", elapsed))s)")
+                } else {
+                    print("[GaitGuard] ✅ WCSession activated")
                 }
+                #endif
             }
             self?.activationState = activationState
             self?.updateConnectionStatus()
+            self?.syncPendingEvents()
         }
     }
-    
+
     #if !os(watchOS)
     func sessionDidBecomeInactive(_ session: WCSession) {
-        // Session inactive
+        #if DEBUG
+        print("[GaitGuard] WCSession became inactive")
+        #endif
     }
-    
+
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
     }
     #endif
-    
-    func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
-        // Handle heartbeat
-        if message["type"] as? String == "heartbeat" {
-            #if !os(watchOS)
-            // iPhone received heartbeat
-            DispatchQueue.main.async { [weak self] in
-                self?.lastHeartbeatTime = Date()
+
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        DispatchQueue.main.async { [weak self] in
+            self?.updateConnectionStatus()
+            if session.isReachable {
+                self?.syncPendingEvents()
+                #if DEBUG
+                print("[GaitGuard] ✅ Counterpart app became reachable")
+                #endif
+            } else {
+                #if DEBUG
+                print("[GaitGuard] ⚠️ Counterpart app became unreachable")
+                #endif
             }
-            
-            // Send reply to confirm receipt
-            session.sendMessage(["heartbeatReply": true], replyHandler: nil)
-            
-            #if DEBUG
-            print("[GaitGuard] iPhone → Heartbeat received")
-            #endif
-            #endif
+        }
+    }
+
+    // MARK: - Message Handling (no reply expected)
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        handleIncomingMessage(message)
+    }
+
+    // MARK: - Message Handling (reply expected)
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
+        handleIncomingMessage(message)
+        replyHandler(["ack": true])
+    }
+
+    private func handleIncomingMessage(_ message: [String: Any]) {
+        // Heartbeat from watch
+        if message["heartbeat"] != nil {
+            handleHeartbeat(message)
             return
         }
-        
+
+        // Shared messages (both platforms)
         if let data = message["assistEvent"] as? Data {
-            #if DEBUG
-            print("[GaitGuard] iPhone → Assist event received")
-            #endif
             receiveAssistEvent(data)
         }
-        
-        // Handle settings updates from iPhone
         if let data = message["watchSettings"] as? Data,
            let settings = try? JSONDecoder().decode(WatchSettings.self, from: data) {
             DispatchQueue.main.async { [weak self] in
                 self?.watchSettings = settings
             }
-            #if DEBUG
-            print("[GaitGuard] Watch → Settings updated")
-            #endif
         }
-        
-        // Handle calibration status from watch
+
+        // Platform-specific handling
+        #if os(watchOS)
+        handleWatchIncoming(message)
+        #else
+        handleiPhoneIncoming(message)
+        #endif
+    }
+
+    private func handleHeartbeat(_ message: [String: Any]) {
         #if !os(watchOS)
+        guard let timestamp = message["heartbeat"] as? TimeInterval else { return }
+        let sentDate = Date(timeIntervalSince1970: timestamp)
+        let latency = Date().timeIntervalSince(sentDate)
+        DispatchQueue.main.async { [weak self] in
+            self?.lastHeartbeatTime = Date()
+            self?.heartbeatLatency = latency
+            self?.isWatchReachable = true
+        }
+        #if DEBUG
+        print("[GaitGuard] iPhone ← Heartbeat (\(String(format: "%.0f", latency * 1000))ms)")
+        #endif
+        #endif
+    }
+
+    #if !os(watchOS)
+    private func handleiPhoneIncoming(_ message: [String: Any]) {
+        if let monitoring = message["monitoringState"] as? Bool {
+            DispatchQueue.main.async { [weak self] in
+                self?.isWatchMonitoring = monitoring
+            }
+        }
+        if let data = message["stepData"] as? Data,
+           let steps = try? JSONDecoder().decode(StepData.self, from: data) {
+            DispatchQueue.main.async { [weak self] in
+                self?.latestStepData = steps
+            }
+        }
         if let data = message["calibrationStatus"] as? Data {
             struct CalibrationStatus: Codable {
                 let isCalibrating: Bool
                 let progress: Double
                 let timeRemaining: Int
             }
-            
             if let status = try? JSONDecoder().decode(CalibrationStatus.self, from: data) {
                 DispatchQueue.main.async { [weak self] in
                     self?.isWatchCalibrating = status.isCalibrating
@@ -587,89 +662,75 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 }
             }
         }
-        
-        // Handle calibration results from watch
         if let data = message["calibrationResults"] as? Data,
            let results = try? JSONDecoder().decode(CalibrationResults.self, from: data) {
             DispatchQueue.main.async { [weak self] in
                 self?.lastCalibrationResults = results
             }
-            #if DEBUG
-            print("[GaitGuard] iPhone → Calibration results received: avg=\(String(format: "%.3f", results.average)), threshold=\(String(format: "%.3f", results.baselineThreshold))")
-            #endif
         }
-        
-        // Handle live accelerometer data from watch
         if let data = message["accelerometerData"] as? Data,
            let accelData = try? JSONDecoder().decode(AccelerometerData.self, from: data) {
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.liveAccelerometerData.append(accelData)
-                
-                // Keep only last N data points to prevent memory issues
                 if self.liveAccelerometerData.count > self.maxLiveDataPoints {
                     self.liveAccelerometerData.removeFirst(self.liveAccelerometerData.count - self.maxLiveDataPoints)
                 }
             }
         }
-        #endif
-        
-        // Handle test haptic request
-        #if os(watchOS)
+    }
+    #endif
+
+    #if os(watchOS)
+    private func handleWatchIncoming(_ message: [String: Any]) {
         if message["testHaptic"] != nil {
-            let startTime = Date()
             let device = WKInterfaceDevice.current()
             let hapticType: WKHapticType
             switch watchSettings.hapticPattern {
-            case "notification":
-                hapticType = .notification
-            case "start":
-                hapticType = .start
-            case "stop":
-                hapticType = .stop
-            case "click":
-                hapticType = .click
-            default:
-                hapticType = .directionUp
+            case "notification": hapticType = .notification
+            case "start": hapticType = .start
+            case "stop": hapticType = .stop
+            case "click": hapticType = .click
+            default: hapticType = .directionUp
             }
             device.play(hapticType)
-            
-            #if DEBUG
-            let latency = Date().timeIntervalSince(startTime)
-            print("[GaitGuard] Watch → Test haptic triggered (latency: \(String(format: "%.3f", latency))s)")
-            #endif
         }
-        
-        // Handle factory reset request
         if message["resetToFactory"] != nil {
             NotificationCenter.default.post(name: NSNotification.Name("ResetToFactorySettings"), object: nil)
-            #if DEBUG
-            print("[GaitGuard] Watch → Factory reset received")
-            #endif
         }
-        #endif
     }
-    
-    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+    #endif
+
+    // MARK: - Application Context
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         if let data = applicationContext["assistEvent"] as? Data {
             receiveAssistEvent(data)
         }
-        
-        // Handle settings from application context
+
         if let data = applicationContext["watchSettings"] as? Data,
            let settings = try? JSONDecoder().decode(WatchSettings.self, from: data) {
             DispatchQueue.main.async { [weak self] in
                 self?.watchSettings = settings
             }
         }
-    }
-    
-    #if !os(watchOS)
-    func sessionReachabilityDidChange(_ session: WCSession) {
-        DispatchQueue.main.async { [weak self] in
-            self?.updateConnectionStatus()
+
+        if let monitoring = applicationContext["monitoringState"] as? Bool {
+            #if !os(watchOS)
+            DispatchQueue.main.async { [weak self] in
+                self?.isWatchMonitoring = monitoring
+            }
+            #endif
         }
+
+        #if !os(watchOS)
+        if let data = applicationContext["calibrationResults"] as? Data,
+           let results = try? JSONDecoder().decode(CalibrationResults.self, from: data) {
+            DispatchQueue.main.async { [weak self] in
+                self?.lastCalibrationResults = results
+            }
+        }
+        #endif
     }
-    #endif
 }
 

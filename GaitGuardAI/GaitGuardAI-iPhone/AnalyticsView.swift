@@ -3,12 +3,12 @@ import Charts
 
 struct AnalyticsView: View {
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
-    
+
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Summary Cards
+                    // Summary Cards Row 1
                     HStack(spacing: 15) {
                         StatCard(
                             title: "Total Events",
@@ -24,32 +24,89 @@ struct AnalyticsView: View {
                         )
                     }
                     .padding(.horizontal)
-                    
+
+                    // Step Data Cards
+                    if let steps = connectivityManager.latestStepData {
+                        HStack(spacing: 15) {
+                            StatCard(
+                                title: "Steps",
+                                value: "\(steps.stepCount)",
+                                icon: "figure.walk",
+                                color: .purple
+                            )
+                            if let cadence = steps.cadence, cadence > 0 {
+                                StatCard(
+                                    title: "Cadence",
+                                    value: String(format: "%.0f/min", cadence * 60),
+                                    icon: "metronome",
+                                    color: .orange
+                                )
+                            } else {
+                                StatCard(
+                                    title: "Distance",
+                                    value: steps.distance.map { String(format: "%.0fm", $0) } ?? "--",
+                                    icon: "point.topleft.down.to.point.bottomright.curvepath",
+                                    color: .teal
+                                )
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+
+                    // Monitoring status banner
+                    if connectivityManager.isWatchMonitoring {
+                        HStack(spacing: 8) {
+                            Image(systemName: "bolt.shield.fill")
+                                .foregroundColor(.green)
+                            Text("Watch is actively monitoring")
+                                .font(.subheadline)
+                                .foregroundColor(.green)
+                            Spacer()
+                        }
+                        .padding()
+                        .background(Color.green.opacity(0.1))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
+                    }
+
                     // Live Accelerometer Data
                     if !connectivityManager.liveAccelerometerData.isEmpty {
                         LiveAccelerometerChart(data: connectivityManager.liveAccelerometerData)
                             .frame(height: 250)
                             .padding()
-                        
-                        // Calibration Results
+
                         if let calibration = connectivityManager.lastCalibrationResults {
                             CalibrationResultsCard(results: calibration)
                                 .padding(.horizontal)
                         }
+                    } else if connectivityManager.isWatchReachable {
+                        VStack(spacing: 8) {
+                            Image(systemName: "waveform.path")
+                                .font(.system(size: 30))
+                                .foregroundColor(.secondary)
+                            if connectivityManager.isWatchMonitoring {
+                                Text("Receiving motion data...")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("Tap START on your watch to see live data")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(30)
                     }
-                    
-                    // Events by Type
+
+                    // Event Charts
                     if !connectivityManager.assistEvents.isEmpty {
                         EventsByTypeChart(events: connectivityManager.assistEvents)
                             .frame(height: 200)
                             .padding()
-                        
-                        // Events by Hour
+
                         EventsByHourChart(events: connectivityManager.assistEvents)
                             .frame(height: 200)
                             .padding()
-                        
-                        // Severity Distribution
+
                         SeverityChart(events: connectivityManager.assistEvents)
                             .frame(height: 200)
                             .padding()
@@ -58,13 +115,20 @@ struct AnalyticsView: View {
                             Image(systemName: "chart.bar")
                                 .font(.system(size: 50))
                                 .foregroundColor(.secondary)
-                            Text("No data yet")
+                            Text("No events yet")
                                 .font(.headline)
                                 .foregroundColor(.secondary)
-                            Text("Analytics will appear here once events are recorded")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
+                            if connectivityManager.isWatchReachable {
+                                Text("Event charts will appear when gait assists are triggered")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            } else {
+                                Text("Connect your watch and start monitoring to see analytics")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
                         }
                         .padding(40)
                     }
@@ -74,7 +138,7 @@ struct AnalyticsView: View {
             .navigationTitle("Analytics")
         }
     }
-    
+
     private var eventsToday: Int {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
