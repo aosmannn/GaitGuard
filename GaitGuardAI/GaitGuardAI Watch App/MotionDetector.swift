@@ -18,8 +18,18 @@ class MotionDetector: ObservableObject {
     @Published var calibrationTimeRemaining: Int = 30 // seconds
     @Published var batteryLow: Bool = false
     @Published var monitoringStoppedDueToBattery: Bool = false
+    @Published var lastAssistTime: Date?
+    @Published var todaysTotal: Int = 0
+    @Published var isMonitoring = false
+    @Published var currentSteps: Int = 0
+    @Published var currentCadence: Double?
+    @Published var currentDistance: Double?
     
     private let motionManager = CMMotionManager()
+    private let pedometer = CMPedometer()
+    private var stepDataTimer: Timer?
+    private var assistEventsToday: [Date] = [] // Track events for today's count
+    private let eventsKey = "gaitguard.assistEventsToday"
     private var baselineMagnitude: Double = 1.0
     private var magnitudeHistory: [Double] = []
     private let historySize = 100 // Keep last 100 samples for baseline
@@ -42,10 +52,45 @@ class MotionDetector: ObservableObject {
     
     init() {
         loadCalibrationData()
+        loadTodayEvents()
+        updateTodaysTotal()
         // Suppress CoreMotion preference reading warnings
         // This is a harmless system-level warning that occurs when CoreMotion
         // tries to read managed preferences (which apps don't have access to)
         setupMotionManager()
+    }
+    
+    var lastAssistTimeText: String {
+        guard let lastAssist = lastAssistTime else {
+            return "Never"
+        }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: lastAssist)
+    }
+    
+    private func loadTodayEvents() {
+        if let data = UserDefaults.standard.data(forKey: eventsKey),
+           let dates = try? JSONDecoder().decode([Date].self, from: data) {
+            assistEventsToday = dates
+            lastAssistTime = dates.last
+        }
+    }
+    
+    private func saveTodayEvents() {
+        if let encoded = try? JSONEncoder().encode(assistEventsToday) {
+            UserDefaults.standard.set(encoded, forKey: eventsKey)
+        }
+    }
+    
+    private func updateTodaysTotal() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        assistEventsToday = assistEventsToday.filter { eventDate in
+            calendar.startOfDay(for: eventDate) == today
+        }
+        todaysTotal = assistEventsToday.count
+        saveTodayEvents()
     }
     
     private func setupMotionManager() {
@@ -152,7 +197,11 @@ class MotionDetector: ObservableObject {
         
         guard let session = WatchConnectivityManager.shared.wcSession, session.isReachable else { return }
         guard let data = try? JSONEncoder().encode(status) else { return }
-        session.sendMessage(["calibrationStatus": data], replyHandler: nil)
+        session.sendMessage(["calibrationStatus": data], replyHandler: nil) { error in
+            #if DEBUG
+            print("[MotionDetector] ⚠️ sendMessage calibrationStatus failed: \(error.localizedDescription)")
+            #endif
+        }
         #endif
     }
     
@@ -315,17 +364,39 @@ class MotionDetector: ObservableObject {
     func startMonitoring() {
         guard motionManager.isAccelerometerAvailable else { return }
         
-        // Battery safety check
         if checkBatteryLevel() {
             monitoringStoppedDueToBattery = true
-            WKInterfaceDevice.current().play(.failure) // Alert haptic
+            WKInterfaceDevice.current().play(.failure)
             return
         }
         
         monitoringStoppedDueToBattery = false
-        
-        // Start heartbeat when monitoring starts
+        isMonitoring = true
+        WatchConnectivityManager.shared.sendMonitoringState(isMonitoring: true)
         WatchConnectivityManager.shared.startHeartbeat()
+        
+        if CMPedometer.isStepCountingAvailable() {
+            pedometer.startUpdates(from: Date()) { [weak self] data, error in
+                guard let self = self, let data = data else { return }
+                DispatchQueue.main.async {
+                    self.currentSteps = data.numberOfSteps.intValue
+                    if let pace = data.averageActivePace?.doubleValue, pace > 0 {
+                        self.currentCadence = pace * 60.0
+                    } else {
+                        self.currentCadence = nil
+                    }
+                    if let dist = data.distance?.doubleValue {
+                        self.currentDistance = dist
+                    } else {
+                        self.currentDistance = nil
+                    }
+                }
+            }
+        }
+        
+        stepDataTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+            self?.sendStepDataUpdate()
+        }
         
         motionManager.accelerometerUpdateInterval = 1.0 / 50.0 // 50Hz
         
@@ -414,13 +485,31 @@ class MotionDetector: ObservableObject {
         lastFreezeTime = nil
         consecutiveFreezes = 0
         
-        // Stop heartbeat when monitoring stops
+        isMonitoring = false
+        WatchConnectivityManager.shared.sendMonitoringState(isMonitoring: false)
         WatchConnectivityManager.shared.stopHeartbeat()
         
-        // Stop calibration if running
+        if CMPedometer.isStepCountingAvailable() {
+            pedometer.stopUpdates()
+        }
+        stepDataTimer?.invalidate()
+        stepDataTimer = nil
+        
+        currentSteps = 0
+        currentCadence = nil
+        currentDistance = nil
+        
         if isCalibrating {
             stopCalibration()
         }
+    }
+    
+    private func sendStepDataUpdate() {
+        WatchConnectivityManager.shared.sendStepData(
+            stepCount: currentSteps,
+            cadence: currentCadence,
+            distance: currentDistance
+        )
     }
     
     // MARK: - Baseline & Adaptive Threshold
@@ -494,6 +583,14 @@ class MotionDetector: ObservableObject {
     
     private func triggerRescue(type: String, severity: Double, duration: TimeInterval?) {
         let now = Date()
+        
+        // Track event locally
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.assistEventsToday.append(now)
+            self.lastAssistTime = now
+            self.updateTodaysTotal()
+        }
         
         // Haptic fatigue prevention: enforce cooldown period
         if let lastHaptic = lastHapticTime {

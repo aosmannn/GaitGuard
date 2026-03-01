@@ -1,15 +1,13 @@
-// GaitGuardiPhoneApp.swift
 import SwiftUI
 
 @main
-struct GaitGuardiPhoneApp: App {
-    @StateObject private var connectivity = WatchConnectivityManager.shared
-
+struct GaitGuardAIiPhoneApp: App {
+    @StateObject private var connectivityManager = WatchConnectivityManager.shared
+    
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(connectivity)
+                .environmentObject(connectivityManager)
         }
     }
 }
-

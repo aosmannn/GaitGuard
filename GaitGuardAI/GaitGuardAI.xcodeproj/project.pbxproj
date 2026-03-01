@@ -9,14 +9,19 @@
 /* Begin PBXBuildFile section */
 		6608BA112F29DF4C00C6F03E /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6608BA102F29DF4C00C6F03E /* SessionManager.swift */; };
 		661A62C12F29813A0044AA5A /* GaitGuardAI Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 661A62C02F29813A0044AA5A /* GaitGuardAI Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		77C0A020B3F14A2C9D5D0020 /* Shared/WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0A010B3F14A2C9D5D0010 /* Shared/WatchConnectivityManager.swift */; };
 		77C0A021B3F14A2C9D5D0021 /* Shared/WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0A010B3F14A2C9D5D0010 /* Shared/WatchConnectivityManager.swift */; };
-		77C0A022B3F14A2C9D5D0022 /* GaitGuardAI-iPhone/ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0A011B3F14A2C9D5D0011 /* GaitGuardAI-iPhone/ContentView.swift */; };
-		77C0A023B3F14A2C9D5D0023 /* GaitGuardAI-iPhone/GaitGuardAIiPhoneApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0A012B3F14A2C9D5D0012 /* GaitGuardAI-iPhone/GaitGuardAIiPhoneApp.swift */; };
+		77C0A030B3F14A2C9D5D0030 /* GaitGuardAI Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 661A62C02F29813A0044AA5A /* GaitGuardAI Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		661A62C22F29813A0044AA5A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 661A62B42F29813A0044AA5A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 661A62BF2F29813A0044AA5A;
+			remoteInfo = "GaitGuardAI Watch App";
+		};
+		77C0A031B3F14A2C9D5D0031 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 661A62B42F29813A0044AA5A /* Project object */;
 			proxyType = 1;
@@ -37,6 +42,17 @@
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		77C0A032B3F14A2C9D5D0032 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				77C0A030B3F14A2C9D5D0030 /* GaitGuardAI Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -45,8 +61,6 @@
 		661A62C02F29813A0044AA5A /* GaitGuardAI Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GaitGuardAI Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		66ADBD642F29C5E9002D2C28 /* GaitGuardAI-iPhone.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GaitGuardAI-iPhone.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		77C0A010B3F14A2C9D5D0010 /* Shared/WatchConnectivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shared/WatchConnectivityManager.swift; sourceTree = "<group>"; };
-		77C0A011B3F14A2C9D5D0011 /* GaitGuardAI-iPhone/ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GaitGuardAI-iPhone/ContentView.swift"; sourceTree = "<group>"; };
-		77C0A012B3F14A2C9D5D0012 /* GaitGuardAI-iPhone/GaitGuardAIiPhoneApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "GaitGuardAI-iPhone/GaitGuardAIiPhoneApp.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -90,8 +104,6 @@
 			children = (
 				6608BA102F29DF4C00C6F03E /* SessionManager.swift */,
 				77C0A010B3F14A2C9D5D0010 /* Shared/WatchConnectivityManager.swift */,
-				77C0A011B3F14A2C9D5D0011 /* GaitGuardAI-iPhone/ContentView.swift */,
-				77C0A012B3F14A2C9D5D0012 /* GaitGuardAI-iPhone/GaitGuardAIiPhoneApp.swift */,
 				77C0A002B3F14A2C9D5D0002 /* Shared */,
 				661A62C42F29813A0044AA5A /* GaitGuardAI Watch App */,
 				77C0A001B3F14A2C9D5D0001 /* GaitGuardAI-iPhone */,
@@ -161,10 +173,12 @@
 				66ADBD602F29C5E9002D2C28 /* Sources */,
 				66ADBD612F29C5E9002D2C28 /* Frameworks */,
 				66ADBD622F29C5E9002D2C28 /* Resources */,
+				77C0A032B3F14A2C9D5D0032 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				77C0A033B3F14A2C9D5D0033 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				77C0A001B3F14A2C9D5D0001 /* GaitGuardAI-iPhone */,
@@ -266,6 +280,11 @@
 			isa = PBXTargetDependency;
 			target = 661A62BF2F29813A0044AA5A /* GaitGuardAI Watch App */;
 			targetProxy = 661A62C22F29813A0044AA5A /* PBXContainerItemProxy */;
+		};
+		77C0A033B3F14A2C9D5D0033 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 661A62BF2F29813A0044AA5A /* GaitGuardAI Watch App */;
+			targetProxy = 77C0A031B3F14A2C9D5D0031 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -391,24 +410,25 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_ENTITLEMENTS = "GaitGuardAI Watch App/GaitGuardAI Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2STYFMJ8WN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "GaitGuardAI-Watch-App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = GaitGuard;
+				INFOPLIST_KEY_CFBundleDisplayName = GaitGuardAI;
+				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "GaitGuardAI uses health data to maintain a continuous background session for real-time fall detection and gait analysis";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your heart rate to monitor your activity during gait guarding.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "We record your activity to help track your walking progress.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "GaitGuard uses motion sensors to detect freezing episodes and help you walk.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKWatchOnly = NO;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.adam.GaitGuardAI;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.adam.GaitGuardAI.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -429,24 +449,25 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "";
+				CODE_SIGN_ENTITLEMENTS = "GaitGuardAI Watch App/GaitGuardAI Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2STYFMJ8WN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "GaitGuardAI-Watch-App-Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = GaitGuard;
+				INFOPLIST_KEY_CFBundleDisplayName = GaitGuardAI;
+				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "GaitGuardAI uses health data to maintain a continuous background session for real-time fall detection and gait analysis";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "We use your heart rate to monitor your activity during gait guarding.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "We record your activity to help track your walking progress.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "GaitGuard uses motion sensors to detect freezing episodes and help you walk.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
-				INFOPLIST_KEY_WKWatchOnly = NO;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.adam.GaitGuardAI;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.adam.GaitGuardAI.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
@@ -467,10 +488,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2STYFMJ8WN;
-				INFOPLIST_KEY_CFBundleDisplayName = GaitGuard;
-				MARKETING_VERSION = 1.0;
+				INFOPLIST_KEY_CFBundleDisplayName = GaitGuardAI;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.adam.GaitGuardAI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -484,10 +505,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2STYFMJ8WN;
-				INFOPLIST_KEY_CFBundleDisplayName = GaitGuard;
-				MARKETING_VERSION = 1.0;
+				INFOPLIST_KEY_CFBundleDisplayName = GaitGuardAI;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.adam.GaitGuardAI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -504,7 +525,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2STYFMJ8WN;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -516,8 +537,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.adam.GaitGuardAI-iPhone";
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adam.GaitGuardAI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -536,7 +557,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 2STYFMJ8WN;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -548,8 +569,8 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.adam.GaitGuardAI-iPhone";
+				MARKETING_VERSION = 1.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.adam.GaitGuardAI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
