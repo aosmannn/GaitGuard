@@ -1,179 +1,25 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var engine = MotionDetector()
+    @StateObject private var engine: MotionDetector
     @StateObject private var gaitTrackingManager: GaitTrackingManager
-    // 1. Reference the SessionManager from the environment
     @EnvironmentObject var sessionManager: SessionManager
     @State private var isActive = false
-    
+
     init() {
         let detector = MotionDetector()
         _engine = StateObject(wrappedValue: detector)
         _gaitTrackingManager = StateObject(wrappedValue: GaitTrackingManager(motionDetector: detector))
     }
-    
+
     var body: some View {
         Group {
             if engine.isCalibrating {
-                // Calibration Mode UI - Full Screen
-                ScrollView {
-                    VStack(spacing: 8) {
-                        Image(systemName: "waveform.path")
-                            .font(.system(size: 30))
-                            .foregroundColor(.orange)
-                            .symbolEffect(.pulse)
-                        
-                        Text("Calibrating...")
-                            .font(.system(.caption, design: .rounded).bold())
-                        
-                        // Countdown Timer
-                        Text("\(engine.calibrationTimeRemaining)")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundColor(.orange)
-                        
-                        Text("seconds")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        
-                        // Progress Bar
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(height: 8)
-                                    .cornerRadius(4)
-                                
-                                Rectangle()
-                                    .fill(Color.orange)
-                                    .frame(width: geometry.size.width * engine.calibrationProgress, height: 8)
-                                    .cornerRadius(4)
-                            }
-                        }
-                        .frame(height: 8)
-                        .padding(.horizontal, 20)
-                        
-                        Text("Walk normally")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 8)
-                        
-                        Button("Cancel") {
-                            engine.stopCalibration()
-                        }
-                        .tint(.red)
-                        .buttonStyle(.bordered)
-                        .font(.caption)
-                    }
-                    .padding(.vertical, 8)
-                }
+                calibrationView
             } else {
-                // Normal Monitoring UI
-                ScrollView {
-                    VStack(spacing: 8) {
-                        Image(systemName: isActive ? "bolt.shield.fill" : "shield.slash")
-                            .font(.system(size: 35))
-                            .foregroundColor(isActive ? .green : .gray)
-                            .symbolEffect(.pulse, isActive: isActive)
-
-                        Text(isActive ? "Monitoring Gait" : "Guard is Off")
-                            .font(.system(.caption, design: .rounded).bold())
-
-                        if !isActive {
-                            Text("Open iPhone app to sync data")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .padding(.top, 2)
-                        }
-
-                        // Live step data when monitoring
-                        if isActive {
-                            HStack(spacing: 12) {
-                                VStack(spacing: 2) {
-                                    Text("\(engine.currentSteps)")
-                                        .font(.system(.title3, design: .rounded).bold())
-                                    Text("Steps")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                                if let cadence = engine.currentCadence, cadence > 0 {
-                                    VStack(spacing: 2) {
-                                        Text(String(format: "%.0f", cadence * 60))
-                                            .font(.system(.title3, design: .rounded).bold())
-                                        Text("Steps/min")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                            .padding(.top, 4)
-                        }
-
-                        if engine.monitoringStoppedDueToBattery {
-                            Text("Battery Low - Stopped")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                                .padding(.top, 4)
-                        }
-
-                        if engine.hasCalibrationData() {
-                            Text("Calibrated")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                                .padding(.top, 2)
-                        } else if engine.isCalibrationUnstable() {
-                            VStack(spacing: 4) {
-                                Text("Calibration Unstable")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                                Text("Please try again")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.top, 4)
-                        }
-
-                        Button(action: {
-                            isActive.toggle()
-                            if isActive {
-                                sessionManager.startSession()
-                                gaitTrackingManager.startTracking()
-                                engine.startMonitoring()
-                            } else {
-                                gaitTrackingManager.stopTracking()
-                                engine.stopMonitoring()
-                            }
-                        }) {
-                            Text(isActive ? "STOP" : "START")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                        }
-                        .tint(isActive ? .red : .blue)
-                        .buttonStyle(.borderedProminent)
-                        .padding(.horizontal)
-
-                        Button(action: {
-                            engine.startCalibration()
-                        }) {
-                            HStack(spacing: 3) {
-                                Image(systemName: "gauge")
-                                    .font(.caption2)
-                                Text("Calibrate")
-                                    .font(.caption)
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .tint(.orange)
-                        .buttonStyle(.bordered)
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-                    }
-                    .padding(.vertical, 8)
-                }
+                monitoringView
             }
         }
-        // Using the gradient background you liked
         .containerBackground(
             engine.isCalibrating ? Color.orange.gradient :
             (isActive ? Color.green.gradient : Color.blue.gradient),
@@ -181,6 +27,149 @@ struct ContentView: View {
         )
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ResetToFactorySettings"))) { _ in
             engine.resetToFactorySettings()
+        }
+    }
+
+    // MARK: - Calibration View
+
+    private var calibrationView: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                Image(systemName: "waveform.path")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.orange)
+                    .symbolEffect(.pulse)
+
+                Text("Calibrating")
+                    .font(.system(.caption, design: .rounded).bold())
+
+                Text("\(engine.calibrationTimeRemaining)")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(.orange)
+                    .contentTransition(.numericText())
+
+                ProgressView(value: engine.calibrationProgress)
+                    .tint(.orange)
+                    .padding(.horizontal, 20)
+
+                Text("Walk normally")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                Button("Cancel") { engine.stopCalibration() }
+                    .tint(.red)
+                    .buttonStyle(.bordered)
+                    .font(.caption)
+            }
+            .padding(.vertical, 8)
+        }
+    }
+
+    // MARK: - Monitoring View
+
+    private var monitoringView: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                Image(systemName: isActive ? "bolt.shield.fill" : "shield")
+                    .font(.system(size: 36))
+                    .foregroundStyle(isActive ? .green : .gray)
+                    .symbolEffect(.pulse, isActive: isActive)
+
+                Text(isActive ? "Monitoring" : "GaitGuard")
+                    .font(.system(.caption, design: .rounded).bold())
+
+                if isActive {
+                    liveStats
+                } else {
+                    statusBadges
+                }
+
+                Button {
+                    isActive.toggle()
+                    if isActive {
+                        sessionManager.startSession()
+                        gaitTrackingManager.startTracking()
+                        engine.startMonitoring()
+                    } else {
+                        gaitTrackingManager.stopTracking()
+                        engine.stopMonitoring()
+                    }
+                } label: {
+                    Text(isActive ? "STOP" : "START")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                }
+                .tint(isActive ? .red : .blue)
+                .buttonStyle(.borderedProminent)
+                .padding(.horizontal)
+
+                if !isActive {
+                    Button {
+                        engine.startCalibration()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "tuningfork")
+                                .font(.caption2)
+                            Text("Calibrate")
+                                .font(.caption)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .tint(.orange)
+                    .buttonStyle(.bordered)
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.vertical, 8)
+        }
+    }
+
+    // MARK: - Live Stats
+
+    private var liveStats: some View {
+        HStack(spacing: 14) {
+            VStack(spacing: 2) {
+                Text("\(engine.currentSteps)")
+                    .font(.system(.title3, design: .rounded).bold().monospacedDigit())
+                Text("Steps")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if let cadence = engine.currentCadence, cadence > 0 {
+                VStack(spacing: 2) {
+                    Text(String(format: "%.0f", cadence * 60))
+                        .font(.system(.title3, design: .rounded).bold().monospacedDigit())
+                    Text("Steps/min")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Status Badges
+
+    private var statusBadges: some View {
+        VStack(spacing: 6) {
+            if engine.monitoringStoppedDueToBattery {
+                Label("Low Battery", systemImage: "battery.25")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+            if engine.hasCalibrationData() {
+                Label("Calibrated", systemImage: "checkmark.seal.fill")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            } else if engine.isCalibrationUnstable() {
+                Label("Calibration Failed", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else {
+                Text("Tap START to begin")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 }

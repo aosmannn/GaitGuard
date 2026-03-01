@@ -1,325 +1,392 @@
 import SwiftUI
 import WatchConnectivity
 
+// MARK: - App Theme
+
+enum GGTheme {
+    static let accent = Color.blue
+    static let success = Color.green
+    static let warning = Color.orange
+    static let danger = Color.red
+    static let cardBackground = Color(.systemGray6)
+    static let cardRadius: CGFloat = 16
+    static let sectionSpacing: CGFloat = 24
+}
+
+// MARK: - Root Tab View
+
 struct ContentView: View {
     @EnvironmentObject var connectivityManager: WatchConnectivityManager
-    @State private var timer: Timer?
     @State private var selectedTab = 0
-    
+
     var body: some View {
         TabView(selection: $selectedTab) {
-            EventsListView()
+            DashboardView()
                 .tabItem {
-                    Label("Events", systemImage: "list.bullet")
+                    Label("Dashboard", systemImage: "heart.text.clipboard")
                 }
                 .tag(0)
-            
+
             AnalyticsView()
                 .tabItem {
-                    Label("Analytics", systemImage: "chart.bar")
+                    Label("Insights", systemImage: "chart.xyaxis.line")
                 }
                 .tag(1)
-            
+
             RemoteControlsView()
                 .tabItem {
-                    Label("Controls", systemImage: "slider.horizontal.3")
+                    Label("Settings", systemImage: "gearshape")
                 }
                 .tag(2)
         }
+        .tint(GGTheme.accent)
     }
 }
 
-struct EventsListView: View {
-    @EnvironmentObject var connectivityManager: WatchConnectivityManager
+// MARK: - Dashboard View
+
+struct DashboardView: View {
+    @EnvironmentObject var cm: WatchConnectivityManager
     @State private var timer: Timer?
-
-    private var connectionIcon: String {
-        if connectivityManager.isWatchReachable {
-            return "applewatch.radiowaves.left.and.right"
-        } else if connectivityManager.isWatchConnected {
-            return "applewatch"
-        } else {
-            return "applewatch.slash"
-        }
-    }
-
-    private var connectionColor: Color {
-        if connectivityManager.isWatchReachable { return .green }
-        if connectivityManager.isWatchConnected { return .orange }
-        return .red
-    }
-
-    private var connectionTitle: String {
-        if connectivityManager.isWatchReachable { return "Watch Connected" }
-        if connectivityManager.isWatchConnected { return "Watch Paired" }
-        if connectivityManager.activationState == .notActivated { return "Connecting..." }
-        return "Watch Not Paired"
-    }
 
     var body: some View {
         NavigationView {
-            List {
-                // Connection Status Section
-                Section {
-                    HStack {
-                        Image(systemName: connectionIcon)
-                            .foregroundColor(connectionColor)
-                            .font(.title2)
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(connectionTitle)
-                                    .font(.headline)
-                                Button(action: {
-                                    connectivityManager.updateConnectionStatus()
-                                }) {
-                                    Image(systemName: "arrow.clockwise")
-                                        .font(.caption)
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            // Monitoring status
-                            if connectivityManager.isWatchMonitoring {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "bolt.shield.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption)
-                                    Text("Monitoring active")
-                                        .font(.caption)
-                                        .foregroundColor(.green)
-                                    if let steps = connectivityManager.latestStepData {
-                                        Text("· \(steps.stepCount) steps")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .padding(.top, 1)
-                            }
-
-                            // Heartbeat indicator
-                            if connectivityManager.isWatchReachable, let lastHeartbeat = connectivityManager.lastHeartbeatTime {
-                                HStack(spacing: 4) {
-                                    Circle()
-                                        .fill(Color.green)
-                                        .frame(width: 8, height: 8)
-                                    Text("Heartbeat: \(lastHeartbeat, style: .relative)")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    if connectivityManager.heartbeatLatency > 0 {
-                                        Text("(\(String(format: "%.0f", connectivityManager.heartbeatLatency * 1000))ms)")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .padding(.top, 1)
-                            }
-
-                            // Calibration status
-                            if connectivityManager.isWatchCalibrating {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "waveform.path")
-                                        .foregroundColor(.orange)
-                                        .font(.caption)
-                                    Text("Calibrating... \(connectivityManager.calibrationTimeRemaining)s")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-                                }
-                                .padding(.top, 1)
-                            }
-
-                            // Status detail
-                            if !connectivityManager.isWatchReachable {
-                                if !connectivityManager.isWatchConnected {
-                                    if connectivityManager.activationState == .notActivated {
-                                        Text("Initializing connection...")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                    } else {
-                                        Text("Pair your Apple Watch in the Watch app")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                } else {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Open GaitGuardAI on your watch")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
-                                        Text("Watch app must be visible on screen")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            } else if let lastEvent = connectivityManager.lastEventTime {
-                                Text("Last event: \(lastEvent, style: .relative)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else if !connectivityManager.isWatchMonitoring {
-                                Text("Tap START on watch to begin monitoring")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        Spacer()
-                        if connectivityManager.isWatchReachable {
-                            Circle()
-                                .fill(connectivityManager.isWatchCalibrating ? Color.orange : Color.green)
-                                .frame(width: 12, height: 12)
-                        }
+            ScrollView {
+                VStack(spacing: GGTheme.sectionSpacing) {
+                    connectionCard
+                    if cm.isWatchMonitoring || cm.latestStepData != nil {
+                        liveMetricsRow
                     }
-                } header: {
-                    Text("Connection Status")
+                    eventsSection
                 }
-                
-                // Assist Events Section
-                Section {
-                    if connectivityManager.assistEvents.isEmpty {
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 8) {
-                                Image(systemName: "waveform.path")
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.secondary)
-                                Text("No events yet")
-                                    .foregroundColor(.secondary)
-                                Text("Events will appear here in real-time")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                        }
-                        .padding(.vertical, 20)
-                    } else {
-                        ForEach(connectivityManager.assistEvents.indices.reversed(), id: \.self) { index in
-                            let event = connectivityManager.assistEvents[index]
-                            EventRowView(event: event, isNewest: index == connectivityManager.assistEvents.count - 1)
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text("Assist Events")
-                        Spacer()
-                        Text("\(connectivityManager.assistEvents.count)")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    }
-                } footer: {
-                    if !connectivityManager.assistEvents.isEmpty {
-                        Text("Events update in real-time as they occur on your watch")
-                            .font(.caption)
-                    }
-                }
+                .padding(.horizontal)
+                .padding(.bottom, 30)
             }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("GaitGuard")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    if !connectivityManager.assistEvents.isEmpty {
-                        Button("Clear") {
-                            connectivityManager.clearEvents()
-                        }
+                    if !cm.assistEvents.isEmpty {
+                        Button("Clear") { cm.clearEvents() }
+                            .font(.subheadline)
                     }
                 }
             }
             .onAppear {
-                connectivityManager.updateConnectionStatus()
-                startConnectionMonitoring()
+                cm.updateConnectionStatus()
+                startPolling()
             }
-            .onDisappear {
-                stopConnectionMonitoring()
-            }
-        }
-        .navigationTitle("GaitGuardAI")
-    }
-    
-    private func startConnectionMonitoring() {
-        // Update connection status every second for real-time monitoring
-        let manager = connectivityManager
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            // Force real connection check
-            manager.updateConnectionStatus()
-            
-            // Also trigger reachability check
-            if let session = manager.wcSession {
-                // Accessing isReachable triggers a real check
-                _ = session.isReachable
-            }
+            .onDisappear { stopPolling() }
         }
     }
-    
-    private func stopConnectionMonitoring() {
+
+    // MARK: - Connection Card
+
+    private var connectionCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(connectionColor.opacity(0.15))
+                        .frame(width: 48, height: 48)
+                    Image(systemName: connectionIcon)
+                        .font(.title3)
+                        .foregroundStyle(connectionColor)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(connectionTitle)
+                            .font(.headline)
+                        if cm.isWatchReachable {
+                            Circle()
+                                .fill(GGTheme.success)
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    connectionSubtitle
+                }
+                Spacer()
+                Button {
+                    cm.updateConnectionStatus()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+
+            if cm.isWatchReachable, let hb = cm.lastHeartbeatTime {
+                Divider().padding(.horizontal)
+                HStack(spacing: 6) {
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Last sync \(hb, style: .relative)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if cm.heartbeatLatency > 0 {
+                        Text("\(String(format: "%.0f", cm.heartbeatLatency * 1000))ms")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+            }
+        }
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
+        .padding(.top, 8)
+    }
+
+    // MARK: - Live Metrics
+
+    private var liveMetricsRow: some View {
+        HStack(spacing: 12) {
+            if let steps = cm.latestStepData {
+                MetricCard(
+                    value: "\(steps.stepCount)",
+                    label: "Steps",
+                    icon: "figure.walk",
+                    color: .purple
+                )
+                if let cadence = steps.cadence, cadence > 0 {
+                    MetricCard(
+                        value: String(format: "%.0f", cadence * 60),
+                        label: "Steps/min",
+                        icon: "metronome",
+                        color: .orange
+                    )
+                }
+                if let dist = steps.distance, dist > 0 {
+                    MetricCard(
+                        value: String(format: "%.0f", dist),
+                        label: "Meters",
+                        icon: "point.topleft.down.to.point.bottomright.curvepath",
+                        color: .teal
+                    )
+                }
+            }
+            if cm.isWatchMonitoring && cm.latestStepData == nil {
+                MetricCard(value: "--", label: "Steps", icon: "figure.walk", color: .purple)
+                MetricCard(value: "--", label: "Steps/min", icon: "metronome", color: .orange)
+            }
+        }
+    }
+
+    // MARK: - Events Section
+
+    private var eventsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Recent Events")
+                    .font(.title3.bold())
+                Spacer()
+                if !cm.assistEvents.isEmpty {
+                    Text("\(cm.assistEvents.count) total")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if cm.assistEvents.isEmpty {
+                emptyEventsCard
+            } else {
+                ForEach(cm.assistEvents.suffix(10).reversed()) { event in
+                    EventRow(event: event, isLatest: event.timestamp == cm.assistEvents.last?.timestamp)
+                }
+            }
+        }
+    }
+
+    private var emptyEventsCard: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "waveform.path")
+                .font(.system(size: 44))
+                .foregroundStyle(.quaternary)
+            Text("No events yet")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text(cm.isWatchReachable
+                 ? "Events appear in real-time when gait assists trigger on your watch"
+                 : "Connect your Apple Watch to start monitoring")
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
+    }
+
+    // MARK: - Helpers
+
+    private var connectionIcon: String {
+        if cm.isWatchReachable { return "applewatch.radiowaves.left.and.right" }
+        if cm.isWatchConnected { return "applewatch" }
+        return "applewatch.slash"
+    }
+
+    private var connectionColor: Color {
+        if cm.isWatchReachable { return GGTheme.success }
+        if cm.isWatchConnected { return GGTheme.warning }
+        return GGTheme.danger
+    }
+
+    private var connectionTitle: String {
+        if cm.isWatchReachable { return "Watch Connected" }
+        if cm.isWatchConnected { return "Watch Paired" }
+        if cm.activationState == .notActivated { return "Connecting..." }
+        return "Watch Not Paired"
+    }
+
+    @ViewBuilder
+    private var connectionSubtitle: some View {
+        if cm.isWatchMonitoring {
+            HStack(spacing: 4) {
+                Image(systemName: "bolt.shield.fill")
+                    .foregroundStyle(GGTheme.success)
+                Text("Actively monitoring")
+                    .foregroundStyle(GGTheme.success)
+            }
+            .font(.caption)
+        } else if cm.isWatchCalibrating {
+            HStack(spacing: 4) {
+                Image(systemName: "waveform.path")
+                    .foregroundStyle(GGTheme.warning)
+                Text("Calibrating... \(cm.calibrationTimeRemaining)s")
+                    .foregroundStyle(GGTheme.warning)
+            }
+            .font(.caption)
+        } else if !cm.isWatchReachable && cm.isWatchConnected {
+            Text("Open GaitGuard on your watch")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else if cm.isWatchReachable {
+            Text("Tap START on watch to begin")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Pair in the Watch app on iPhone")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func startPolling() {
+        let mgr = cm
+        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            mgr.updateConnectionStatus()
+        }
+    }
+
+    private func stopPolling() {
         timer?.invalidate()
         timer = nil
     }
 }
 
-struct EventRowView: View {
-    let event: AssistEvent
-    let isNewest: Bool
-    
+// MARK: - Metric Card
+
+struct MetricCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+
     var body: some View {
-        HStack {
-            // Event type icon
-            Image(systemName: event.type == "start" ? "play.circle.fill" : "arrow.turn.up.right.circle.fill")
-                .foregroundColor(event.type == "start" ? .blue : .orange)
-                .font(.title2)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(event.type.capitalized) Assist")
-                    .font(.headline)
-                HStack(spacing: 8) {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(color)
+            Text(value)
+                .font(.title2.bold().monospacedDigit())
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+// MARK: - Event Row
+
+struct EventRow: View {
+    let event: AssistEvent
+    let isLatest: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(eventColor.opacity(0.12))
+                    .frame(width: 42, height: 42)
+                Image(systemName: event.type == "start" ? "figure.stand" : "arrow.triangle.turn.up.right.diamond")
+                    .font(.body)
+                    .foregroundStyle(eventColor)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(event.type == "start" ? "Gait Initiation" : "Turn Assist")
+                        .font(.subheadline.weight(.semibold))
+                    if isLatest {
+                        Text("LATEST")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(GGTheme.success)
+                            .clipShape(Capsule())
+                    }
+                }
+                HStack(spacing: 6) {
                     Text(event.timestamp, style: .time)
-                        .font(.caption)
-                    Text("•")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                     Text(event.timestamp, style: .date)
-                        .font(.caption)
-                    if let duration = event.duration {
-                        Text("•")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(String(format: "%.1fs", duration))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    if let dur = event.duration {
+                        Text(String(format: "%.1fs", dur))
                     }
                 }
-                .foregroundColor(.secondary)
-                
-                // Severity indicator
-                HStack(spacing: 4) {
-                    ForEach(0..<3) { index in
-                        Circle()
-                            .fill(index < Int(event.severity * 3) ? severityColor(event.severity) : Color.gray.opacity(0.3))
-                            .frame(width: 6, height: 6)
-                    }
-                    Text(String(format: "%.0f%%", event.severity * 100))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
-            
+
             Spacer()
-            
-            if isNewest {
-                Text("NEW")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.green)
-                    .cornerRadius(4)
-            }
+
+            severityBadge
         }
-        .padding(.vertical, 4)
-        .animation(.easeInOut(duration: 0.3), value: isNewest)
+        .padding(14)
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
-    
-    private func severityColor(_ severity: Double) -> Color {
-        if severity < 0.33 {
-            return .green
-        } else if severity < 0.66 {
-            return .yellow
-        } else {
-            return .red
-        }
+
+    private var eventColor: Color {
+        event.type == "start" ? .blue : .orange
     }
+
+    private var severityBadge: some View {
+        let sev = event.severity
+        let color: Color = sev < 0.33 ? .green : sev < 0.66 ? .yellow : .red
+        let label = sev < 0.33 ? "Low" : sev < 0.66 ? "Med" : "High"
+        return Text(label)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+}
+
+// MARK: - Make AssistEvent Identifiable
+
+extension AssistEvent: Identifiable {
+    var id: Date { timestamp }
 }

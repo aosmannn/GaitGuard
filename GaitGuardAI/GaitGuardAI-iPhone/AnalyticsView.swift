@@ -1,383 +1,341 @@
 import SwiftUI
 import Charts
 
+// MARK: - Insights View
+
 struct AnalyticsView: View {
-    @EnvironmentObject var connectivityManager: WatchConnectivityManager
+    @EnvironmentObject var cm: WatchConnectivityManager
+
+    private var eventsToday: Int {
+        let start = Calendar.current.startOfDay(for: Date())
+        return cm.assistEvents.filter { Calendar.current.startOfDay(for: $0.timestamp) == start }.count
+    }
+
+    private var startEvents: Int { cm.assistEvents.filter { $0.type == "start" }.count }
+    private var turnEvents: Int { cm.assistEvents.filter { $0.type == "turn" }.count }
 
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Summary Cards Row 1
-                    HStack(spacing: 15) {
-                        StatCard(
-                            title: "Total Events",
-                            value: "\(connectivityManager.assistEvents.count)",
-                            icon: "waveform.path",
-                            color: .blue
-                        )
-                        StatCard(
-                            title: "Today",
-                            value: "\(eventsToday)",
-                            icon: "calendar",
-                            color: .green
-                        )
-                    }
-                    .padding(.horizontal)
-
-                    // Step Data Cards
-                    if let steps = connectivityManager.latestStepData {
-                        HStack(spacing: 15) {
-                            StatCard(
-                                title: "Steps",
-                                value: "\(steps.stepCount)",
-                                icon: "figure.walk",
-                                color: .purple
-                            )
-                            if let cadence = steps.cadence, cadence > 0 {
-                                StatCard(
-                                    title: "Cadence",
-                                    value: String(format: "%.0f/min", cadence * 60),
-                                    icon: "metronome",
-                                    color: .orange
-                                )
-                            } else {
-                                StatCard(
-                                    title: "Distance",
-                                    value: steps.distance.map { String(format: "%.0fm", $0) } ?? "--",
-                                    icon: "point.topleft.down.to.point.bottomright.curvepath",
-                                    color: .teal
-                                )
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-
-                    // Monitoring status banner
-                    if connectivityManager.isWatchMonitoring {
-                        HStack(spacing: 8) {
-                            Image(systemName: "bolt.shield.fill")
-                                .foregroundColor(.green)
-                            Text("Watch is actively monitoring")
-                                .font(.subheadline)
-                                .foregroundColor(.green)
-                            Spacer()
-                        }
-                        .padding()
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(12)
-                        .padding(.horizontal)
-                    }
-
-                    // Live Accelerometer Data
-                    if !connectivityManager.liveAccelerometerData.isEmpty {
-                        LiveAccelerometerChart(data: connectivityManager.liveAccelerometerData)
-                            .frame(height: 250)
-                            .padding()
-
-                        if let calibration = connectivityManager.lastCalibrationResults {
-                            CalibrationResultsCard(results: calibration)
-                                .padding(.horizontal)
-                        }
-                    } else if connectivityManager.isWatchReachable {
-                        VStack(spacing: 8) {
-                            Image(systemName: "waveform.path")
-                                .font(.system(size: 30))
-                                .foregroundColor(.secondary)
-                            if connectivityManager.isWatchMonitoring {
-                                Text("Receiving motion data...")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("Tap START on your watch to see live data")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(30)
-                    }
-
-                    // Event Charts
-                    if !connectivityManager.assistEvents.isEmpty {
-                        EventsByTypeChart(events: connectivityManager.assistEvents)
-                            .frame(height: 200)
-                            .padding()
-
-                        EventsByHourChart(events: connectivityManager.assistEvents)
-                            .frame(height: 200)
-                            .padding()
-
-                        SeverityChart(events: connectivityManager.assistEvents)
-                            .frame(height: 200)
-                            .padding()
-                    } else {
-                        VStack(spacing: 12) {
-                            Image(systemName: "chart.bar")
-                                .font(.system(size: 50))
-                                .foregroundColor(.secondary)
-                            Text("No events yet")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            if connectivityManager.isWatchReachable {
-                                Text("Event charts will appear when gait assists are triggered")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                            } else {
-                                Text("Connect your watch and start monitoring to see analytics")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                            }
-                        }
-                        .padding(40)
-                    }
+                VStack(spacing: GGTheme.sectionSpacing) {
+                    summaryCards
+                    if cm.isWatchMonitoring { monitoringBanner }
+                    liveMotionSection
+                    if !cm.assistEvents.isEmpty { eventChartsSection }
+                    if cm.assistEvents.isEmpty { emptyInsights }
                 }
-                .padding(.vertical)
+                .padding(.horizontal)
+                .padding(.bottom, 30)
             }
-            .navigationTitle("Analytics")
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Insights")
         }
     }
 
-    private var eventsToday: Int {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        return connectivityManager.assistEvents.filter { event in
-            calendar.startOfDay(for: event.timestamp) == today
-        }.count
+    // MARK: - Summary Cards
+
+    private var summaryCards: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                InsightCard(value: "\(cm.assistEvents.count)", label: "Total Events", icon: "waveform.path", gradient: [.blue, .cyan])
+                InsightCard(value: "\(eventsToday)", label: "Today", icon: "calendar", gradient: [.green, .mint])
+            }
+            HStack(spacing: 12) {
+                InsightCard(value: "\(startEvents)", label: "Start Assists", icon: "figure.stand", gradient: [.indigo, .blue])
+                InsightCard(value: "\(turnEvents)", label: "Turn Assists", icon: "arrow.triangle.turn.up.right.diamond", gradient: [.orange, .yellow])
+            }
+            if let steps = cm.latestStepData {
+                HStack(spacing: 12) {
+                    InsightCard(value: "\(steps.stepCount)", label: "Steps", icon: "figure.walk", gradient: [.purple, .pink])
+                    if let cadence = steps.cadence, cadence > 0 {
+                        InsightCard(
+                            value: String(format: "%.0f", cadence * 60),
+                            label: "Cadence/min",
+                            icon: "metronome",
+                            gradient: [.orange, .red]
+                        )
+                    } else {
+                        let distVal = steps.distance.map { String(format: "%.0fm", $0) } ?? "--"
+                        InsightCard(
+                            value: distVal,
+                            label: "Distance",
+                            icon: "location",
+                            gradient: [.teal, .cyan]
+                        )
+                    }
+                }
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    // MARK: - Monitoring Banner
+
+    private var monitoringBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "bolt.shield.fill")
+                .font(.title3)
+                .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Watch is monitoring")
+                    .font(.subheadline.weight(.semibold))
+                Text("Real-time data streaming active")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding()
+        .background(Color.green.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
+    }
+
+    // MARK: - Live Motion
+
+    private var liveMotionSection: some View {
+        Group {
+            if !cm.liveAccelerometerData.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionHeader(title: "Live Motion", subtitle: "\(cm.liveAccelerometerData.count) samples")
+                    LiveAccelerometerChart(data: cm.liveAccelerometerData)
+                        .frame(height: 220)
+                    if let cal = cm.lastCalibrationResults {
+                        CalibrationResultsCard(results: cal)
+                    }
+                }
+            } else if cm.isWatchReachable {
+                VStack(spacing: 10) {
+                    Image(systemName: "waveform.path")
+                        .font(.system(size: 36))
+                        .foregroundStyle(.quaternary)
+                    Text(cm.isWatchMonitoring ? "Receiving motion data..." : "Start monitoring on your watch")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 30)
+                .background(GGTheme.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
+            }
+        }
+    }
+
+    // MARK: - Event Charts
+
+    private var eventChartsSection: some View {
+        VStack(spacing: 16) {
+            SectionHeader(title: "Event Breakdown", subtitle: nil)
+            EventsByTypeChart(events: cm.assistEvents)
+            EventsByHourChart(events: cm.assistEvents)
+            SeverityChart(events: cm.assistEvents)
+        }
+    }
+
+    // MARK: - Empty State
+
+    private var emptyInsights: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "chart.bar.xaxis.ascending")
+                .font(.system(size: 48))
+                .foregroundStyle(.quaternary)
+            Text("No insights yet")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text("Charts and trends appear after gait events are recorded during monitoring sessions.")
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 50)
     }
 }
+
+// MARK: - Section Header
+
+struct SectionHeader: View {
+    let title: String
+    let subtitle: String?
+
+    var body: some View {
+        HStack {
+            Text(title).font(.title3.bold())
+            Spacer()
+            if let sub = subtitle {
+                Text(sub).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+// MARK: - Insight Card (gradient)
+
+struct InsightCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let gradient: [Color]
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(
+                    LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.title3.bold().monospacedDigit())
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+// MARK: - Stat Card (kept for compatibility)
 
 struct StatCard: View {
     let title: String
     let value: String
     let icon: String
     let color: Color
-    
+
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-            Text(value)
-                .font(.title)
-                .fontWeight(.bold)
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        InsightCard(value: value, label: title, icon: icon, gradient: [color, color.opacity(0.6)])
     }
 }
+
+// MARK: - Events by Type Chart
 
 struct EventsByTypeChart: View {
     let events: [AssistEvent]
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Events by Type")
-                .font(.headline)
-                .padding(.horizontal)
-            
-            let startCount = events.filter { $0.type == "start" }.count
-            let turnCount = events.filter { $0.type == "turn" }.count
-            
+        let startCount = events.filter { $0.type == "start" }.count
+        let turnCount = events.filter { $0.type == "turn" }.count
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text("By Type").font(.subheadline.weight(.semibold))
             Chart {
-                BarMark(
-                    x: .value("Type", "Start"),
-                    y: .value("Count", startCount)
-                )
-                .foregroundStyle(.blue)
-                
-                BarMark(
-                    x: .value("Type", "Turn"),
-                    y: .value("Count", turnCount)
-                )
-                .foregroundStyle(.orange)
+                BarMark(x: .value("Type", "Gait Initiation"), y: .value("Count", startCount))
+                    .foregroundStyle(Color.blue.gradient)
+                    .cornerRadius(6)
+                BarMark(x: .value("Type", "Turn Assist"), y: .value("Count", turnCount))
+                    .foregroundStyle(Color.orange.gradient)
+                    .cornerRadius(6)
             }
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .padding()
+            .chartYAxis { AxisMarks(position: .leading) }
+            .frame(height: 160)
         }
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding()
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
     }
 }
+
+// MARK: - Events by Hour Chart
 
 struct EventsByHourChart: View {
     let events: [AssistEvent]
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Events by Hour of Day")
-                .font(.headline)
-                .padding(.horizontal)
-            
-            let hourData = Dictionary(grouping: events) { event in
-                Calendar.current.component(.hour, from: event.timestamp)
-            }.mapValues { $0.count }
-            
+        let hourData = Dictionary(grouping: events) {
+            Calendar.current.component(.hour, from: $0.timestamp)
+        }.mapValues { $0.count }
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text("By Time of Day").font(.subheadline.weight(.semibold))
             Chart {
                 ForEach(Array(hourData.keys.sorted()), id: \.self) { hour in
-                    BarMark(
-                        x: .value("Hour", hour),
-                        y: .value("Count", hourData[hour] ?? 0)
-                    )
-                    .foregroundStyle(.green.gradient)
+                    BarMark(x: .value("Hour", hour), y: .value("Count", hourData[hour] ?? 0))
+                        .foregroundStyle(Color.green.gradient)
+                        .cornerRadius(4)
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .stride(by: 2)) { value in
+                AxisMarks(values: .stride(by: 3)) { val in
                     AxisGridLine()
-                    if let intValue = value.as(Int.self) {
-                        AxisValueLabel("\(intValue)")
-                    } else {
-                        AxisValueLabel()
-                    }
+                    if let hr = val.as(Int.self) { AxisValueLabel("\(hr)h") }
                 }
             }
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .padding()
+            .chartYAxis { AxisMarks(position: .leading) }
+            .frame(height: 160)
         }
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding()
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
     }
 }
+
+// MARK: - Severity Chart
 
 struct SeverityChart: View {
     let events: [AssistEvent]
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Severity Distribution")
-                .font(.headline)
-                .padding(.horizontal)
-            
-            let low = events.filter { $0.severity < 0.33 }.count
-            let medium = events.filter { $0.severity >= 0.33 && $0.severity < 0.66 }.count
-            let high = events.filter { $0.severity >= 0.66 }.count
-            
+        let low = events.filter { $0.severity < 0.33 }.count
+        let med = events.filter { $0.severity >= 0.33 && $0.severity < 0.66 }.count
+        let high = events.filter { $0.severity >= 0.66 }.count
+
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Severity").font(.subheadline.weight(.semibold))
             Chart {
-                BarMark(
-                    x: .value("Severity", "Low"),
-                    y: .value("Count", low)
-                )
-                .foregroundStyle(.green)
-                
-                BarMark(
-                    x: .value("Severity", "Medium"),
-                    y: .value("Count", medium)
-                )
-                .foregroundStyle(.yellow)
-                
-                BarMark(
-                    x: .value("Severity", "High"),
-                    y: .value("Count", high)
-                )
-                .foregroundStyle(.red)
+                BarMark(x: .value("Level", "Low"), y: .value("Count", low))
+                    .foregroundStyle(Color.green.gradient).cornerRadius(6)
+                BarMark(x: .value("Level", "Medium"), y: .value("Count", med))
+                    .foregroundStyle(Color.yellow.gradient).cornerRadius(6)
+                BarMark(x: .value("Level", "High"), y: .value("Count", high))
+                    .foregroundStyle(Color.red.gradient).cornerRadius(6)
             }
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .padding()
+            .chartYAxis { AxisMarks(position: .leading) }
+            .frame(height: 160)
         }
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding()
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
     }
 }
 
-// MARK: - Live Accelerometer Data Visualization
+// MARK: - Live Accelerometer Chart
 
 struct LiveAccelerometerChart: View {
     let data: [AccelerometerData]
-    
+
     var body: some View {
+        let display = Array(data.suffix(100))
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Live Accelerometer Data")
-                    .font(.headline)
-                Spacer()
-                Text("\(data.count) points")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.horizontal)
-            
-            // Show last 100 points for performance
-            let displayData = Array(data.suffix(100))
-            
             Chart {
-                ForEach(Array(displayData.enumerated()), id: \.offset) { index, point in
-                    LineMark(
-                        x: .value("Time", index),
-                        y: .value("X", point.x)
-                    )
-                    .foregroundStyle(.red)
-                    .interpolationMethod(.catmullRom)
-                    
-                    LineMark(
-                        x: .value("Time", index),
-                        y: .value("Y", point.y)
-                    )
-                    .foregroundStyle(.green)
-                    .interpolationMethod(.catmullRom)
-                    
-                    LineMark(
-                        x: .value("Time", index),
-                        y: .value("Z", point.z)
-                    )
-                    .foregroundStyle(.blue)
-                    .interpolationMethod(.catmullRom)
+                ForEach(Array(display.enumerated()), id: \.offset) { idx, pt in
+                    LineMark(x: .value("T", idx), y: .value("X", pt.x))
+                        .foregroundStyle(.red).interpolationMethod(.catmullRom)
+                    LineMark(x: .value("T", idx), y: .value("Y", pt.y))
+                        .foregroundStyle(.green).interpolationMethod(.catmullRom)
+                    LineMark(x: .value("T", idx), y: .value("Z", pt.z))
+                        .foregroundStyle(.blue).interpolationMethod(.catmullRom)
                 }
             }
-            .chartYAxis {
-                AxisMarks(position: .leading)
-            }
-            .chartXAxis {
-                AxisMarks(position: .bottom, values: .stride(by: 20)) { value in
-                    AxisGridLine()
-                    if let intValue = value.as(Int.self) {
-                        AxisValueLabel("\(intValue)")
+            .chartYAxis { AxisMarks(position: .leading) }
+            .chartXAxis(.hidden)
+
+            HStack(spacing: 16) {
+                ForEach(["X": Color.red, "Y": Color.green, "Z": Color.blue].sorted(by: { $0.key < $1.key }), id: \.key) { axis, color in
+                    HStack(spacing: 4) {
+                        Circle().fill(color).frame(width: 7, height: 7)
+                        Text(axis).font(.caption2).foregroundStyle(.secondary)
                     }
                 }
             }
-            .padding()
-            
-            // Legend
-            HStack(spacing: 16) {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.red)
-                        .frame(width: 8, height: 8)
-                    Text("X")
-                        .font(.caption2)
-                }
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.green)
-                        .frame(width: 8, height: 8)
-                    Text("Y")
-                        .font(.caption2)
-                }
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.blue)
-                        .frame(width: 8, height: 8)
-                    Text("Z")
-                        .font(.caption2)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
         }
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .padding()
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
     }
 }
 
@@ -385,61 +343,44 @@ struct LiveAccelerometerChart: View {
 
 struct CalibrationResultsCard: View {
     let results: CalibrationResults
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Calibration Results")
-                .font(.headline)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Average:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(String(format: "%.3f", results.average))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                }
-                
-                HStack {
-                    Text("Std Dev:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(String(format: "%.3f", results.standardDeviation))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                }
-                
-                HStack {
-                    Text("Baseline Threshold:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(String(format: "%.3f", results.baselineThreshold))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
-                }
-                
-                HStack {
-                    Text("Samples:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text("\(results.sampleCount)")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                }
-                
-                Text("Calibrated: \(results.timestamp, style: .relative)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+            HStack {
+                Image(systemName: "tuningfork")
+                    .foregroundStyle(.blue)
+                Text("Calibration").font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(results.timestamp, style: .relative)
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+            HStack(spacing: 16) {
+                CalibrationStat(label: "Baseline", value: String(format: "%.3f", results.average))
+                CalibrationStat(label: "Std Dev", value: String(format: "%.3f", results.standardDeviation))
+                CalibrationStat(label: "Threshold", value: String(format: "%.3f", results.baselineThreshold), highlight: true)
+                CalibrationStat(label: "Samples", value: "\(results.sampleCount)")
             }
         }
         .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .background(GGTheme.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.cardRadius))
+    }
+}
+
+struct CalibrationStat: View {
+    let label: String
+    let value: String
+    var highlight: Bool = false
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.caption.bold().monospacedDigit())
+                .foregroundStyle(highlight ? .blue : .primary)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
