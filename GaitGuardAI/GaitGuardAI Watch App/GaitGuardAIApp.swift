@@ -1,14 +1,14 @@
-// GaitGuardApp.swift (REMOVE any duplicate SessionManager class from this file)
 import SwiftUI
 
 @main
-struct GaitGuardApp: App {
-    @StateObject private var sessionManager = SessionManager()
+struct GaitGuardAIApp: App {
+    init() {
+        _ = WatchConnectivityManager.shared
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(sessionManager)
         }
     }
 }

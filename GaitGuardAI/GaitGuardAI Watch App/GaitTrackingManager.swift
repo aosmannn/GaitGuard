@@ -35,23 +35,15 @@ final class GaitTrackingManager: NSObject, ObservableObject {
     private func requestAuthorization() {
         guard let healthStore = healthStore else { return }
         
-        let typesToShare: Set<HKSampleType> = [
-            HKObjectType.workoutType()
-        ]
+        let typesToShare: Set<HKSampleType> = [HKObjectType.workoutType()]
+        let typesToRead: Set<HKObjectType> = [HKObjectType.workoutType()]
         
-        let typesToRead: Set<HKObjectType> = [
-            HKObjectType.workoutType()
-        ]
-        
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
-            if let error = error {
+        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { [weak self] success, error in
+            if let error = error, error.localizedDescription.contains("entitlement") {
                 #if DEBUG
-                print("[GaitTrackingManager] HealthKit authorization error: \(error.localizedDescription)")
+                print("[GaitTrackingManager] HealthKit entitlement missing, will use fallback when tracking starts")
                 #endif
-            } else if success {
-                #if DEBUG
-                print("[GaitTrackingManager] HealthKit authorization granted")
-                #endif
+                DispatchQueue.main.async { self?.healthStore = nil }
             }
         }
     }
@@ -59,7 +51,6 @@ final class GaitTrackingManager: NSObject, ObservableObject {
     func startTracking() {
         guard !isTracking else { return }
         guard let healthStore = healthStore else {
-            // If HealthKit not available, start without workout session
             startTrackingWithoutWorkout()
             return
         }
@@ -67,21 +58,15 @@ final class GaitTrackingManager: NSObject, ObservableObject {
         do {
             workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: workoutConfiguration)
             workoutSession?.delegate = self
-            
-            // Trigger haptic when session begins
-            WKInterfaceDevice.current().play(.start)
-            
             workoutSession?.startActivity(with: Date())
             isTracking = true
-            
             #if DEBUG
             print("[GaitTrackingManager] Workout session started")
             #endif
         } catch {
             #if DEBUG
-            print("[GaitTrackingManager] Failed to start workout session: \(error.localizedDescription)")
+            print("[GaitTrackingManager] HealthKit unavailable (\(error.localizedDescription)), using fallback")
             #endif
-            // Fallback to tracking without workout session
             startTrackingWithoutWorkout()
         }
     }
@@ -156,12 +141,13 @@ extension GaitTrackingManager: HKWorkoutSessionDelegate {
     
     func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         #if DEBUG
-        print("[GaitTrackingManager] Workout session failed: \(error.localizedDescription)")
+        print("[GaitTrackingManager] Workout session failed: \(error.localizedDescription), falling back to tracking without HealthKit")
         #endif
         
         DispatchQueue.main.async { [weak self] in
-            self?.isTracking = false
-            self?.workoutState = .stopped
+            self?.workoutSession?.end()
+            self?.workoutSession = nil
+            self?.startTrackingWithoutWorkout()
         }
     }
 }
