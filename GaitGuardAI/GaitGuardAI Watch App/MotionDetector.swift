@@ -24,6 +24,7 @@ class MotionDetector: ObservableObject {
     @Published var currentSteps: Int = 0
     @Published var currentCadence: Double?
     @Published var currentDistance: Double?
+    @Published var currentMagnitude: Double = 0.0
     
     private let motionManager = CMMotionManager()
     private let pedometer = CMPedometer()
@@ -244,6 +245,7 @@ class MotionDetector: ObservableObject {
             let y = data.acceleration.y
             let z = data.acceleration.z
             let magnitude = sqrt(x*x + y*y + z*z)
+            self.currentMagnitude = magnitude
             
             // Only collect magnitude for baseline calculation
             self.calibrationData.append(magnitude)

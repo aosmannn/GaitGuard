@@ -72,12 +72,14 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     @Published var lastCalibrationResults: CalibrationResults?
     @Published var isWatchMonitoring = false
     @Published var latestStepData: StepData?
+    @Published var dailyNotes: [String: String] = [:] // key: yyyy-MM-dd
     
     private let session: WCSession?
     private var heartbeatTimer: Timer?
     var wcSession: WCSession? { session }
     private let eventsKey = "gaitguard.assistEvents"
     private let settingsKey = "gaitguard.watchSettings"
+    private let notesKey = "gaitguard.dailyNotes"
     private var pendingEvents: [AssistEvent] = []
     private let maxLiveDataPoints = 500
     
@@ -95,6 +97,7 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         
         loadEvents()
         loadSettings()
+        loadNotes()
         updateConnectionStatus()
         syncPendingEvents()
         
@@ -291,6 +294,31 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
             }
         }
         pendingEvents.removeAll()
+    }
+    
+    // MARK: - Daily Notes
+    
+    private func loadNotes() {
+        if let data = UserDefaults.standard.data(forKey: notesKey),
+           let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
+            dailyNotes = decoded
+        }
+    }
+    
+    func saveNote(for date: Date, text: String) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let key = formatter.string(from: date)
+        
+        if text.isEmpty {
+            dailyNotes.removeValue(forKey: key)
+        } else {
+            dailyNotes[key] = text
+        }
+        
+        if let encoded = try? JSONEncoder().encode(dailyNotes) {
+            UserDefaults.standard.set(encoded, forKey: notesKey)
+        }
     }
     
     // MARK: - iPhone (receive + store)
