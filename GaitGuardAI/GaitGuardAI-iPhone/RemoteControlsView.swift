@@ -2,7 +2,7 @@ import SwiftUI
 import WatchConnectivity
 
 struct RemoteControlsView: View {
-    @EnvironmentObject var connectivityManager: WatchConnectivityManager
+    @EnvironmentObject var cm: WatchConnectivityManager
     @State private var hapticIntensity: Double
     @State private var sensitivity: Double
     @State private var adaptiveThreshold: Bool
@@ -10,351 +10,371 @@ struct RemoteControlsView: View {
     @State private var repeatHaptics: Bool
     @State private var showTestSuccess = false
     @State private var showTestError = false
-    @State private var showResetConfirmation = false
-    @State private var showResetSuccess = false
-    @State private var showSettingsSaved = false
-    
+    @State private var showResetConfirm = false
+    @State private var showResetDone = false
+    @State private var showSaved = false
+
     init() {
-        let settings = WatchConnectivityManager.shared.watchSettings
-        _hapticIntensity = State(initialValue: settings.hapticIntensity)
-        _sensitivity = State(initialValue: settings.sensitivity)
-        _adaptiveThreshold = State(initialValue: settings.adaptiveThreshold)
-        _hapticPattern = State(initialValue: settings.hapticPattern)
-        _repeatHaptics = State(initialValue: settings.repeatHaptics)
+        let s = WatchConnectivityManager.shared.watchSettings
+        _hapticIntensity = State(initialValue: s.hapticIntensity)
+        _sensitivity = State(initialValue: s.sensitivity)
+        _adaptiveThreshold = State(initialValue: s.adaptiveThreshold)
+        _hapticPattern = State(initialValue: s.hapticPattern)
+        _repeatHaptics = State(initialValue: s.repeatHaptics)
     }
-    
+
     var body: some View {
         NavigationStack {
-            List {
-                HapticSection(
-                    hapticIntensity: $hapticIntensity,
-                    hapticPattern: $hapticPattern,
-                    repeatHaptics: $repeatHaptics,
-                    showSettingsSaved: showSettingsSaved,
-                    updateSettings: updateSettings
-                )
-                
-                DetectionSection(
-                    sensitivity: $sensitivity,
-                    adaptiveThreshold: $adaptiveThreshold,
-                    updateSettings: updateSettings
-                )
-                
-                TestSection(
-                    showTestSuccess: $showTestSuccess,
-                    showTestError: $showTestError,
-                    connectivityManager: connectivityManager,
-                    testHaptic: testHaptic
-                )
-                
-                DataSection(
-                    showResetConfirmation: $showResetConfirmation,
-                    showResetSuccess: $showResetSuccess,
-                    resetToFactory: resetToFactory
-                )
-                
-                AboutSection()
+            ZStack {
+                GGTheme.bg.ignoresSafeArea()
+
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        ProfileHeader()
+                        HapticCard(
+                            intensity: $hapticIntensity,
+                            pattern: $hapticPattern,
+                            repeatHaptics: $repeatHaptics,
+                            onUpdate: save
+                        )
+                        DetectionCard(
+                            sensitivity: $sensitivity,
+                            adaptive: $adaptiveThreshold,
+                            onUpdate: save
+                        )
+                        ConnectionCard(
+                            testSuccess: $showTestSuccess,
+                            testError: $showTestError,
+                            onTest: testHaptic
+                        )
+                        DataCard(
+                            showConfirm: $showResetConfirm,
+                            showDone: $showResetDone,
+                            onReset: resetFactory
+                        )
+                        AboutCard()
+                    }
+                    .padding(20)
+                    .padding(.bottom, 20)
+                }
             }
-            .navigationTitle("Settings")
-            .background(GGTheme.background)
-            .scrollContentBackground(.hidden)
+            .navigationTitle("Profile")
         }
     }
-    
-    private func updateSettings() {
-        var newSettings = connectivityManager.watchSettings
-        newSettings.hapticIntensity = hapticIntensity
-        newSettings.sensitivity = sensitivity
-        newSettings.adaptiveThreshold = adaptiveThreshold
-        newSettings.hapticPattern = hapticPattern
-        newSettings.repeatHaptics = repeatHaptics
-        connectivityManager.updateSettings(newSettings)
-        withAnimation { showSettingsSaved = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation { showSettingsSaved = false }
+
+    private func save() {
+        var ns = cm.watchSettings
+        ns.hapticIntensity = hapticIntensity
+        ns.sensitivity = sensitivity
+        ns.adaptiveThreshold = adaptiveThreshold
+        ns.hapticPattern = hapticPattern
+        ns.repeatHaptics = repeatHaptics
+        cm.updateSettings(ns)
+        withAnimation { showSaved = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation { showSaved = false }
         }
     }
-    
+
     private func testHaptic() {
-        connectivityManager.updateConnectionStatus()
-        connectivityManager.testHaptic()
-        
-        if connectivityManager.isWatchReachable {
-            withAnimation {
-                showTestSuccess = true
-                showTestError = false
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                withAnimation { showTestSuccess = false }
-            }
+        cm.updateConnectionStatus()
+        cm.testHaptic()
+        if cm.isWatchReachable {
+            withAnimation { showTestSuccess = true; showTestError = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { withAnimation { showTestSuccess = false } }
         } else {
-            withAnimation {
-                showTestError = true
-                showTestSuccess = false
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
-                withAnimation { showTestError = false }
-            }
+            withAnimation { showTestError = true; showTestSuccess = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { withAnimation { showTestError = false } }
         }
     }
-    
-    private func resetToFactory() {
-        var factorySettings = WatchSettings()
-        factorySettings.sensitivity = 1.3
-        factorySettings.adaptiveThreshold = false
-        connectivityManager.updateSettings(factorySettings)
-        connectivityManager.resetToFactorySettings()
-        withAnimation { showResetSuccess = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            withAnimation { showResetSuccess = false }
-        }
+
+    private func resetFactory() {
+        var fs = WatchSettings()
+        fs.sensitivity = 1.3
+        fs.adaptiveThreshold = false
+        cm.updateSettings(fs)
+        cm.resetToFactorySettings()
+        hapticIntensity = fs.hapticIntensity
+        sensitivity = fs.sensitivity
+        adaptiveThreshold = fs.adaptiveThreshold
+        hapticPattern = fs.hapticPattern
+        repeatHaptics = fs.repeatHaptics
+        withAnimation { showResetDone = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { withAnimation { showResetDone = false } }
     }
 }
 
-struct HapticSection: View {
-    @Binding var hapticIntensity: Double
-    @Binding var hapticPattern: String
-    @Binding var repeatHaptics: Bool
-    let showSettingsSaved: Bool
-    let updateSettings: () -> Void
-    
+// MARK: - Profile Header
+
+struct ProfileHeader: View {
+    @EnvironmentObject var cm: WatchConnectivityManager
+
     var body: some View {
-        Section {
-            if showSettingsSaved {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Settings saved")
-                        .foregroundColor(.green)
-                }
-                .listRowBackground(GGTheme.cardBackground)
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(GGTheme.accent.opacity(0.12))
+                    .frame(width: 72, height: 72)
+                Image(systemName: "shield.checkered")
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundColor(GGTheme.accent)
             }
-            
-            VStack(alignment: .leading, spacing: 8) {
+            Text("GaitGuard")
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundColor(GGTheme.text1)
+            Text(cm.isWatchReachable ? "Watch connected" : "Watch not connected")
+                .font(.system(size: 13))
+                .foregroundColor(GGTheme.text2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+    }
+}
+
+// MARK: - Setting Section Card
+
+struct SettingSection<Content: View>: View {
+    let title: String
+    let icon: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(GGTheme.accent)
+                Text(title)
+                    .font(.system(size: 14, weight: .bold))
+                    .tracking(0.5)
+                    .foregroundColor(GGTheme.text2)
+            }
+            content
+        }
+        .padding(20)
+        .background(GGTheme.card)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
+        .overlay(RoundedRectangle(cornerRadius: GGTheme.radius).stroke(GGTheme.cardBorder, lineWidth: 1))
+    }
+}
+
+// MARK: - Haptic Card
+
+struct HapticCard: View {
+    @Binding var intensity: Double
+    @Binding var pattern: String
+    @Binding var repeatHaptics: Bool
+    let onUpdate: () -> Void
+
+    var body: some View {
+        SettingSection(title: "HAPTIC FEEDBACK", icon: "waveform") {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Label("Intensity", systemImage: "waveform")
+                    Text("Intensity")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(GGTheme.text1)
                     Spacer()
-                    Text("\(Int(hapticIntensity * 100))%")
-                        .foregroundColor(GGTheme.textSecondary)
+                    Text("\(Int(intensity * 100))%")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(GGTheme.accent)
                 }
-                Slider(value: $hapticIntensity, in: 0.0...1.0, step: 0.1)
-                    .onChange(of: hapticIntensity) { _, _ in updateSettings() }
-                    .tint(.blue)
+                Slider(value: $intensity, in: 0...1, step: 0.1)
+                    .tint(GGTheme.accent)
+                    .onChange(of: intensity) { _, _ in onUpdate() }
             }
-            .padding(.vertical, 4)
-            .listRowBackground(GGTheme.cardBackground)
-            
-            Picker(selection: $hapticPattern) {
-                Label("Direction Up", systemImage: "arrow.up").tag("directionUp")
-                Label("Notification", systemImage: "bell").tag("notification")
-                Label("Start", systemImage: "play").tag("start")
-                Label("Stop", systemImage: "stop").tag("stop")
-                Label("Click", systemImage: "hand.tap").tag("click")
-            } label: {
-                Label("Pattern", systemImage: "waveform.path")
+
+            Divider().background(GGTheme.text3.opacity(0.2))
+
+            HStack {
+                Text("Pattern")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(GGTheme.text1)
+                Spacer()
+                Picker("", selection: $pattern) {
+                    Text("Direction Up").tag("directionUp")
+                    Text("Notification").tag("notification")
+                    Text("Start").tag("start")
+                    Text("Stop").tag("stop")
+                    Text("Click").tag("click")
+                }
+                .pickerStyle(.menu)
+                .tint(GGTheme.accent)
+                .onChange(of: pattern) { _, _ in onUpdate() }
             }
-            .onChange(of: hapticPattern) { _, _ in updateSettings() }
-            .listRowBackground(GGTheme.cardBackground)
-            
+
+            Divider().background(GGTheme.text3.opacity(0.2))
+
             Toggle(isOn: $repeatHaptics) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Repeat during freeze", systemImage: "repeat")
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Repeat during freeze")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(GGTheme.text1)
                     Text("Continue pulsing during prolonged freezing")
-                        .font(.caption)
-                        .foregroundColor(GGTheme.textSecondary)
-                        .padding(.leading, 32)
+                        .font(.system(size: 12))
+                        .foregroundColor(GGTheme.text2)
                 }
             }
-            .onChange(of: repeatHaptics) { _, _ in updateSettings() }
-            .tint(.blue)
-            .listRowBackground(GGTheme.cardBackground)
-            
-        } header: {
-            Text("Haptic Feedback")
-                .foregroundColor(GGTheme.textSecondary)
+            .tint(GGTheme.accent)
+            .onChange(of: repeatHaptics) { _, _ in onUpdate() }
         }
     }
 }
 
-struct DetectionSection: View {
+// MARK: - Detection Card
+
+struct DetectionCard: View {
     @Binding var sensitivity: Double
-    @Binding var adaptiveThreshold: Bool
-    let updateSettings: () -> Void
-    
-    private var sensitivityText: String {
+    @Binding var adaptive: Bool
+    let onUpdate: () -> Void
+
+    private var sensitivityLabel: String {
         if sensitivity < 1.0 { return "High" }
         if sensitivity < 2.0 { return "Medium" }
         return "Low"
     }
-    
     private var sensitivityColor: Color {
-        if sensitivity < 1.0 { return .red }
+        if sensitivity < 1.0 { return GGTheme.danger }
         if sensitivity < 2.0 { return .orange }
-        return .green
+        return GGTheme.accent
     }
-    
+
     var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
+        SettingSection(title: "DETECTION", icon: "sensor.fill") {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Label("Sensitivity", systemImage: "slider.horizontal.3")
+                    Text("Sensitivity")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(GGTheme.text1)
                     Spacer()
-                    Text(sensitivityText)
-                        .fontWeight(.medium)
+                    Text(sensitivityLabel)
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(sensitivityColor)
                 }
                 Slider(value: $sensitivity, in: 0.5...3.0, step: 0.1)
-                    .onChange(of: sensitivity) { _, _ in updateSettings() }
-                    .tint(.blue)
-                Text("Lower values = more sensitive detection")
-                    .font(.caption)
-                    .foregroundColor(GGTheme.textSecondary)
+                    .tint(GGTheme.accent)
+                    .onChange(of: sensitivity) { _, _ in onUpdate() }
+                Text("Lower = more sensitive")
+                    .font(.system(size: 11))
+                    .foregroundColor(GGTheme.text3)
             }
-            .padding(.vertical, 4)
-            .listRowBackground(GGTheme.cardBackground)
-            
-            Toggle(isOn: $adaptiveThreshold) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("Smart Detection", systemImage: "brain")
-                    if adaptiveThreshold {
+
+            Divider().background(GGTheme.text3.opacity(0.2))
+
+            Toggle(isOn: $adaptive) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Smart Detection")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(GGTheme.text1)
+                    if adaptive {
                         Text("Automatically adjusts to your gait")
-                            .font(.caption)
-                            .foregroundColor(GGTheme.textSecondary)
-                            .padding(.leading, 32)
+                            .font(.system(size: 12))
+                            .foregroundColor(GGTheme.text2)
                     }
                 }
             }
-            .onChange(of: adaptiveThreshold) { _, _ in updateSettings() }
-            .tint(.blue)
-            .listRowBackground(GGTheme.cardBackground)
-            
-        } header: {
-            Text("Detection")
-                .foregroundColor(GGTheme.textSecondary)
+            .tint(GGTheme.accent)
+            .onChange(of: adaptive) { _, _ in onUpdate() }
         }
     }
 }
 
-struct TestSection: View {
-    @Binding var showTestSuccess: Bool
-    @Binding var showTestError: Bool
-    let connectivityManager: WatchConnectivityManager
-    let testHaptic: () -> Void
-    
+// MARK: - Connection Card
+
+struct ConnectionCard: View {
+    @Binding var testSuccess: Bool
+    @Binding var testError: Bool
+    let onTest: () -> Void
+
     var body: some View {
-        Section {
-            Button(action: testHaptic) {
+        SettingSection(title: "TEST CONNECTION", icon: "antenna.radiowaves.left.and.right") {
+            Button(action: onTest) {
                 HStack {
-                    Label("Send Test Vibration", systemImage: "iphone.radiowaves.left.and.right")
-                        .foregroundColor(.blue)
+                    Text("Send Test Vibration")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(GGTheme.accent)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundColor(GGTheme.textSecondary)
+                    Image(systemName: "arrow.right.circle.fill")
+                        .foregroundColor(GGTheme.accent)
                 }
             }
-            .listRowBackground(GGTheme.cardBackground)
-            
-            if showTestSuccess {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Vibration sent! Watch should have buzzed.")
-                        .font(.caption)
-                        .foregroundColor(.green)
+
+            if testSuccess {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(GGTheme.accent)
+                    Text("Vibration sent!").font(.system(size: 13)).foregroundColor(GGTheme.accent)
                 }
-                .listRowBackground(GGTheme.cardBackground)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            
-            if showTestError {
+            if testError {
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.red)
-                        Text("Not connected")
-                            .font(.subheadline)
-                            .foregroundColor(.red)
+                    HStack(spacing: 8) {
+                        Image(systemName: "xmark.circle.fill").foregroundColor(GGTheme.danger)
+                        Text("Not connected").font(.system(size: 13, weight: .medium)).foregroundColor(GGTheme.danger)
                     }
-                    Text("Keep both apps open. On Watch: tap START. Wait 30–60 sec, then test again.")
-                        .font(.caption)
-                        .foregroundColor(GGTheme.textSecondary)
+                    Text("Open both apps on physical devices and wait for connection.")
+                        .font(.system(size: 12)).foregroundColor(GGTheme.text2)
                 }
-                .padding(.vertical, 4)
-                .listRowBackground(GGTheme.cardBackground)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
-            
-        } header: {
-            Text("Test Connection")
-                .foregroundColor(GGTheme.textSecondary)
-        } footer: {
-            Text("Test vibration confirms connection. Settings sync instantly when connected.")
-                .foregroundColor(GGTheme.textSecondary)
         }
     }
 }
 
-struct DataSection: View {
-    @Binding var showResetConfirmation: Bool
-    @Binding var showResetSuccess: Bool
-    let resetToFactory: () -> Void
-    
+// MARK: - Data Card
+
+struct DataCard: View {
+    @Binding var showConfirm: Bool
+    @Binding var showDone: Bool
+    let onReset: () -> Void
+
     var body: some View {
-        Section {
-            Button(role: .destructive, action: { showResetConfirmation = true }) {
+        SettingSection(title: "DATA", icon: "arrow.counterclockwise") {
+            Button(action: { showConfirm = true }) {
                 HStack {
-                    Label("Reset to Defaults", systemImage: "arrow.counterclockwise")
+                    Text("Reset to Defaults")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(GGTheme.danger)
                     Spacer()
                 }
             }
-            .listRowBackground(GGTheme.cardBackground)
-            
-            if showResetSuccess {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("Reset complete")
-                        .foregroundColor(.green)
+
+            if showDone {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(GGTheme.accent)
+                    Text("Reset complete").font(.system(size: 13)).foregroundColor(GGTheme.accent)
                 }
-                .listRowBackground(GGTheme.cardBackground)
+                .transition(.opacity)
             }
-        } header: {
-            Text("Data")
-                .foregroundColor(GGTheme.textSecondary)
         }
-        .alert("Reset to Defaults", isPresented: $showResetConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Reset", role: .destructive, action: resetToFactory)
+        .alert("Reset to Defaults", isPresented: $showConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive, action: onReset)
         } message: {
-            Text("This will reset all calibration data and settings. This cannot be undone.")
+            Text("This will reset all calibration data and settings.")
         }
     }
 }
 
-struct AboutSection: View {
+// MARK: - About Card
+
+struct AboutCard: View {
     var body: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("GaitGuard")
-                    .font(.headline)
-                    .foregroundColor(GGTheme.textPrimary)
-                Text("GaitGuard is a wellness and activity monitoring tool. It is not intended to diagnose, treat, cure, or prevent any disease or medical condition. Always consult with healthcare professionals for medical advice.")
-                    .font(.caption)
-                    .foregroundColor(GGTheme.textSecondary)
-            }
-            .padding(.vertical, 8)
-            .listRowBackground(GGTheme.cardBackground)
-            
+        SettingSection(title: "ABOUT", icon: "info.circle") {
+            Text("GaitGuard is a wellness and activity monitoring tool. It is not intended to diagnose, treat, cure, or prevent any disease or medical condition.")
+                .font(.system(size: 13))
+                .foregroundColor(GGTheme.text2)
+
+            Divider().background(GGTheme.text3.opacity(0.2))
+
             HStack {
-                Label("Version", systemImage: "info.circle")
-                    .foregroundColor(GGTheme.textPrimary)
+                Text("Version")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(GGTheme.text1)
                 Spacer()
-                Text("1.0")
-                    .foregroundColor(GGTheme.textSecondary)
+                Text("1.1.0")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundColor(GGTheme.text2)
             }
-            .listRowBackground(GGTheme.cardBackground)
-        } header: {
-            Text("About")
-                .foregroundColor(GGTheme.textSecondary)
         }
     }
 }
