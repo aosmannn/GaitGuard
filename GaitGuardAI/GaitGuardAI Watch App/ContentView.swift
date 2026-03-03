@@ -67,7 +67,10 @@ struct ScorePage: View {
 
     private var gaitScore: Int {
         guard isActive else { return 0 }
-        return max(0, 100 - engine.todaysTotal * 8)
+        var penalty = Double(engine.todaysTotal * 12)
+        let offset = Double(engine.currentSteps) / 150.0
+        penalty = max(0, penalty - offset)
+        return max(0, min(100, Int(100.0 - penalty)))
     }
 
     private var scoreLabel: String {
@@ -334,34 +337,51 @@ struct StatsPage: View {
 struct CalibrationView: View {
     @ObservedObject var engine: MotionDetector
 
+    // A visual multiplier based on movement
+    private var pulseScale: CGFloat {
+        // Normal walking is ~1.2 - 2.5 magnitude
+        // Let's cap at 2.5 for animation
+        let capped = min(max(engine.currentMagnitude, 1.0), 3.0)
+        return CGFloat(1.0 + (capped - 1.0) * 0.3)
+    }
+
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             Spacer()
 
-            Image(systemName: "waveform.path")
-                .font(.system(size: 28))
-                .foregroundColor(.orange)
-                .symbolEffect(.pulse)
+            ZStack {
+                Circle()
+                    .fill(Color.orange.opacity(0.2))
+                    .frame(width: 44, height: 44)
+                    .scaleEffect(pulseScale)
+                    .animation(.spring(response: 0.2, dampingFraction: 0.5), value: engine.currentMagnitude)
+
+                Image(systemName: "figure.walk")
+                    .font(.system(size: 24))
+                    .foregroundColor(.orange)
+            }
 
             Text("\(engine.calibrationTimeRemaining)")
-                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .font(.system(size: 40, weight: .bold, design: .rounded))
                 .foregroundColor(.orange)
                 .contentTransition(.numericText())
 
             ProgressView(value: engine.calibrationProgress)
                 .tint(.orange)
                 .padding(.horizontal, 24)
+                .padding(.vertical, 4)
 
-            Text("Walk normally")
-                .font(.system(size: 12, weight: .medium))
+            Text("Walk at normal pace")
+                .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.gray)
 
             Spacer()
 
             Button(role: .destructive, action: { engine.stopCalibration() }) {
                 Text("Cancel")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
             }
+            .frame(height: 36)
         }
         .containerBackground(Color.orange.opacity(0.15).gradient, for: .navigation)
     }

@@ -5,14 +5,14 @@ enum GGTheme {
     static let bg = Color(red: 0.04, green: 0.05, blue: 0.09)
     static let card = Color(red: 0.08, green: 0.09, blue: 0.14)
     static let cardBorder = Color.white.opacity(0.06)
-    static let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
+    static let accent = Color.blue // Standard Apple Blue
     static let accentDim = accent.opacity(0.15)
     static let text1 = Color.white
     static let text2 = Color(white: 0.55)
     static let text3 = Color(white: 0.35)
     static let danger = Color(red: 1.0, green: 0.35, blue: 0.35)
     static let warn = Color.orange
-    static let good = Color(red: 0.18, green: 0.87, blue: 0.72)
+    static let good = Color.green
     static let radius: CGFloat = 20
 }
 
@@ -54,6 +54,57 @@ struct HomeTab: View {
         cm.assistEvents.filter { Calendar.current.isDateInYesterday($0.timestamp) }
     }
 
+    private var gaitScore: Int {
+        guard cm.isWatchMonitoring else { return 0 }
+        let now = Date()
+        var penalty: Double = 0
+        
+        let todayEvents = cm.assistEvents.filter { Calendar.current.isDateInToday($0.timestamp) }
+        
+        if todayEvents.isEmpty { return 100 }
+        
+        var totalSeverity: Double = 0
+        
+        for event in todayEvents {
+            totalSeverity += event.severity
+            let hoursAgo = now.timeIntervalSince(event.timestamp) / 3600.0
+            if hoursAgo <= 1.0 {
+                penalty += 15.0 // High penalty for very recent
+            } else if hoursAgo <= 4.0 {
+                penalty += 10.0
+            } else {
+                penalty += 5.0
+            }
+        }
+        
+        let avgSeverity = totalSeverity / Double(todayEvents.count)
+        penalty += (avgSeverity * 15.0) // Up to 15 points penalty for high severity
+        
+        // Offset by step count if we have it (e.g. 1 point back per 500 steps in current session)
+        if let steps = cm.latestStepData?.stepCount, steps > 0 {
+            let offset = Double(steps) / 200.0
+            penalty = max(0, penalty - offset)
+        }
+        
+        return max(0, min(100, Int(100.0 - penalty)))
+    }
+
+    private var scoreLabel: String {
+        if !cm.isWatchMonitoring { return "Idle" }
+        if gaitScore >= 85 { return "Excellent" }
+        if gaitScore >= 65 { return "Good" }
+        if gaitScore >= 40 { return "Fair" }
+        return "Needs Attention"
+    }
+
+    private var scoreColor: Color {
+        if !cm.isWatchMonitoring { return GGTheme.text3 }
+        if gaitScore >= 85 { return GGTheme.accent }
+        if gaitScore >= 65 { return .green }
+        if gaitScore >= 40 { return .orange }
+        return GGTheme.danger
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -61,6 +112,15 @@ struct HomeTab: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 20) {
+                        
+                        GaitScoreRing(
+                            score: cm.isWatchMonitoring ? gaitScore : nil,
+                            label: scoreLabel,
+                            color: scoreColor
+                        )
+                        .padding(.top, 8)
+                        .padding(.bottom, 8)
+
                         WatchStatusCard(cm: cm, now: now)
 
                         if cm.isWatchMonitoring {
@@ -98,6 +158,66 @@ struct HomeTab: View {
             cm.updateConnectionStatus()
             _ = cm.wcSession?.isReachable
             now = Date()
+        }
+    }
+}
+
+// MARK: - Gait Score Ring
+
+struct GaitScoreRing: View {
+    let score: Int?
+    let label: String
+    let color: Color
+
+    private var progress: Double {
+        guard let s = score else { return 0 }
+        return Double(s) / 100.0
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .stroke(GGTheme.text3.opacity(0.2), lineWidth: 10)
+                    .frame(width: 180, height: 180)
+
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(
+                        AngularGradient(
+                            colors: [color.opacity(0.5), color],
+                            center: .center,
+                            startAngle: .degrees(0),
+                            endAngle: .degrees(360 * progress)
+                        ),
+                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
+                    )
+                    .frame(width: 180, height: 180)
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeInOut(duration: 1.0), value: progress)
+
+                VStack(spacing: 2) {
+                    Text("GAIT SCORE")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .tracking(1.5)
+                        .foregroundColor(GGTheme.text2)
+
+                    if let s = score {
+                        Text("\(s)")
+                            .font(.system(size: 64, weight: .bold, design: .rounded))
+                            .foregroundColor(GGTheme.text1)
+                            .contentTransition(.numericText())
+                    } else {
+                        Text("--")
+                            .font(.system(size: 64, weight: .bold, design: .rounded))
+                            .foregroundColor(GGTheme.text3)
+                    }
+                }
+            }
+
+            Text(label)
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundColor(color)
         }
     }
 }
@@ -531,39 +651,84 @@ struct StepRow: View {
 
 struct HistoryTab: View {
     @EnvironmentObject var cm: WatchConnectivityManager
+    @State private var dailyNoteText: String = ""
+    @FocusState private var isNoteFocused: Bool
+    
+    private var todayKey: String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
+    }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 GGTheme.bg.ignoresSafeArea()
 
-                if cm.assistEvents.isEmpty {
+                ScrollView {
                     VStack(spacing: 16) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 48))
-                            .foregroundColor(GGTheme.text3)
-                        Text("No Events Yet")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(GGTheme.text1)
-                        Text("When freeze events are detected they will appear here.")
-                            .font(.system(size: 14))
-                            .foregroundColor(GGTheme.text2)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 10) {
-                            ForEach(cm.assistEvents.reversed()) { event in
-                                HistoryRow(event: event)
+                        
+                        // Daily Note Section
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "note.text")
+                                    .foregroundColor(GGTheme.accent)
+                                Text("Today's Note")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(GGTheme.text1)
+                                Spacer()
                             }
+                            
+                            TextField("How are you feeling today?", text: $dailyNoteText, axis: .vertical)
+                                .lineLimit(2...5)
+                                .focused($isNoteFocused)
+                                .padding(12)
+                                .background(GGTheme.card)
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(isNoteFocused ? GGTheme.accent : GGTheme.cardBorder, lineWidth: 1))
+                                .foregroundColor(GGTheme.text1)
+                                .onChange(of: dailyNoteText) { _, newText in
+                                    cm.saveNote(for: Date(), text: newText)
+                                }
                         }
-                        .padding(20)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        
+                        if cm.assistEvents.isEmpty {
+                            VStack(spacing: 16) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(GGTheme.text3)
+                                Text("No Events Yet")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(GGTheme.text1)
+                                Text("When freeze events are detected they will appear here.")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(GGTheme.text2)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
+                            }
+                            .padding(.top, 40)
+                        } else {
+                            LazyVStack(spacing: 10) {
+                                ForEach(cm.assistEvents.reversed()) { event in
+                                    HistoryRow(event: event)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
                     }
+                }
+                .onAppear {
+                    dailyNoteText = cm.dailyNotes[todayKey] ?? ""
                 }
             }
             .navigationTitle("History")
             .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { isNoteFocused = false }
+                }
+                
                 if !cm.assistEvents.isEmpty {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Clear") {

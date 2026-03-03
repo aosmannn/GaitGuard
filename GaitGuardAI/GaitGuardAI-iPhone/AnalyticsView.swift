@@ -29,6 +29,10 @@ struct AnalyticsView: View {
                         if let cal = cm.lastCalibrationResults {
                             CalibrationCard(results: cal)
                         }
+                        
+                        if !cm.dailyNotes.isEmpty {
+                            NotesSection(notes: cm.dailyNotes)
+                        }
 
                         if cm.assistEvents.isEmpty && cm.liveAccelerometerData.isEmpty {
                             EmptyTrends()
@@ -133,7 +137,7 @@ struct EventBreakdownSection: View {
     private var turns: Int { events.filter { $0.type == "turn" }.count }
 
     var body: some View {
-        ExpandableCard(title: "Event Breakdown", icon: "chart.bar.fill", expanded: $expanded) {
+        ExpandableCard(title: "What types of events happened?", icon: "chart.bar.fill", expanded: $expanded) {
             HStack(spacing: 16) {
                 BreakdownBar(label: "Start", count: starts, total: events.count, color: .blue)
                 BreakdownBar(label: "Turn", count: turns, total: events.count, color: .orange)
@@ -204,7 +208,7 @@ struct TimePatternSection: View {
     @State private var expanded = false
 
     var body: some View {
-        ExpandableCard(title: "Time Patterns", icon: "clock.fill", expanded: $expanded) {
+        ExpandableCard(title: "When do events occur most?", icon: "clock.fill", expanded: $expanded) {
             let hourData = Dictionary(grouping: events) {
                 Calendar.current.component(.hour, from: $0.timestamp)
             }.mapValues { $0.count }
@@ -259,7 +263,7 @@ struct SeveritySection: View {
     private var high: Int { events.filter { $0.severity >= 0.66 }.count }
 
     var body: some View {
-        ExpandableCard(title: "Severity Distribution", icon: "exclamationmark.triangle.fill", expanded: $expanded) {
+        ExpandableCard(title: "How severe are the events?", icon: "exclamationmark.triangle.fill", expanded: $expanded) {
             HStack(spacing: 12) {
                 SeverityPill(label: "Low", count: low, color: GGTheme.accent)
                 SeverityPill(label: "Med", count: med, color: .orange)
@@ -315,7 +319,7 @@ struct MotionSection: View {
     @State private var expanded = true
 
     var body: some View {
-        ExpandableCard(title: "Live Motion", icon: "waveform.path.ecg", expanded: $expanded) {
+        ExpandableCard(title: "What is my current motion?", icon: "waveform.path.ecg", expanded: $expanded) {
             let display = Array(data.suffix(100))
             Chart {
                 ForEach(Array(display.enumerated()), id: \.offset) { i, pt in
@@ -461,6 +465,52 @@ struct ChartCard<Content: View>: View {
         .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
         .overlay(RoundedRectangle(cornerRadius: GGTheme.radius).stroke(GGTheme.cardBorder, lineWidth: 1))
     }
+}
+
+// MARK: - Notes Section
+
+struct NotesSection: View {
+    let notes: [String: String]
+    @State private var expanded = false
+
+    var body: some View {
+        ExpandableCard(title: "Journal & Notes", icon: "note.text", expanded: $expanded) {
+            let sortedNotes = notes.sorted { $0.key > $1.key }
+            
+            VStack(spacing: 12) {
+                ForEach(Array(sortedNotes.prefix(5)), id: \.key) { note in
+                    VStack(alignment: .leading, spacing: 4) {
+                        if let date = DateFormatter.yyyyMMdd.date(from: note.key) {
+                            Text(date, style: .date)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(GGTheme.accent)
+                        } else {
+                            Text(note.key)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(GGTheme.accent)
+                        }
+                        
+                        Text(note.value)
+                            .font(.system(size: 14))
+                            .foregroundColor(GGTheme.text1)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(GGTheme.cardBorder.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+        }
+    }
+}
+
+extension DateFormatter {
+    static let yyyyMMdd: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 }
 
 // MARK: - Empty Trends
