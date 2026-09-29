@@ -14,6 +14,8 @@ struct RemoteControlsView: View {
     @State private var showResetDone = false
     @State private var showSaved = false
     @State private var showCalibration = false
+    @State private var saveWorkItem: DispatchWorkItem?
+    @State private var remoteActionError = false
 
     init() {
         let s = WatchConnectivityManager.shared.watchSettings
@@ -31,8 +33,67 @@ struct RemoteControlsView: View {
 
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 20) {
-                        ProfileHeader()
-                        
+                        SettingsHeader()
+
+                        if cm.settingsQueuedOffline {
+                            OfflineSettingsBanner()
+                        }
+
+                        if showSaved {
+                            SavedToast(queued: cm.settingsQueuedOffline || !cm.isWatchReachable)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                        }
+
+                        // Monitoring
+                        SettingSection(title: "MONITORING", icon: "play.circle.fill") {
+                            if cm.isWatchMonitoring {
+                                Button(action: {
+                                    if !cm.requestStopMonitoring() {
+                                        withAnimation { remoteActionError = true }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                            withAnimation { remoteActionError = false }
+                                        }
+                                    }
+                                }) {
+                                    HStack {
+                                        Label("Stop Monitoring", systemImage: "stop.fill")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(GGTheme.danger)
+                                        Spacer()
+                                    }
+                                }
+                                .disabled(!cm.isWatchReachable)
+                            } else {
+                                Button(action: {
+                                    if !cm.requestStartMonitoring() {
+                                        withAnimation { remoteActionError = true }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                            withAnimation { remoteActionError = false }
+                                        }
+                                    }
+                                }) {
+                                    HStack {
+                                        Label("Start Monitoring", systemImage: "play.fill")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(GGTheme.accent)
+                                        Spacer()
+                                    }
+                                }
+                                .disabled(!cm.isWatchReachable)
+                            }
+
+                            if !cm.isWatchReachable {
+                                Text("Watch must be reachable to start or stop.")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(GGTheme.text3)
+                            }
+                            if remoteActionError {
+                                Text("Could not reach Watch. Open GaitGuard on your Watch and try again.")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(GGTheme.warn)
+                            }
+                        }
+
                         // Calibration Setup
                         SettingSection(title: "CALIBRATION", icon: "tuningfork") {
                             Button(action: { showCalibration = true }) {
@@ -55,17 +116,17 @@ struct RemoteControlsView: View {
                         .sheet(isPresented: $showCalibration) {
                             CalibrationGuideSheet()
                         }
-                        
+
                         HapticCard(
                             intensity: $hapticIntensity,
                             pattern: $hapticPattern,
                             repeatHaptics: $repeatHaptics,
-                            onUpdate: save
+                            onUpdate: scheduleSave
                         )
                         DetectionCard(
                             sensitivity: $sensitivity,
                             adaptive: $adaptiveThreshold,
-                            onUpdate: save
+                            onUpdate: scheduleSave
                         )
                         ConnectionCard(
                             testSuccess: $showTestSuccess,
@@ -83,8 +144,16 @@ struct RemoteControlsView: View {
                     .padding(.bottom, 20)
                 }
             }
-            .navigationTitle("Profile")
+            .navigationTitle("Settings")
         }
+    }
+
+    /// Debounce rapid slider updates before pushing to Watch.
+    private func scheduleSave() {
+        saveWorkItem?.cancel()
+        let work = DispatchWorkItem { save() }
+        saveWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
     }
 
     private func save() {
@@ -129,30 +198,100 @@ struct RemoteControlsView: View {
     }
 }
 
-// MARK: - Profile Header
+// MARK: - Settings Header (connection + calibration, not a fake profile)
 
-struct ProfileHeader: View {
+struct SettingsHeader: View {
     @EnvironmentObject var cm: WatchConnectivityManager
 
-    var body: some View {
-        VStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(GGTheme.accent.opacity(0.12))
-                    .frame(width: 72, height: 72)
-                Image(systemName: "shield.checkered")
-                    .font(.system(size: 32, weight: .medium))
-                    .foregroundColor(GGTheme.accent)
-            }
-            Text("GaitGuard")
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundColor(GGTheme.text1)
-            Text(cm.isWatchReachable ? "Watch connected" : "Watch not connected")
-                .font(.system(size: 13))
-                .foregroundColor(GGTheme.text2)
+    private var connectionLabel: String {
+        if cm.isWatchMonitoring { return "Cueing active" }
+        if cm.isWatchReachable { return "Watch reachable" }
+        if cm.isWatchConnected { return "Watch paired" }
+        return "Watch not connected"
+    }
+
+    private var connectionColor: Color {
+        if cm.isWatchMonitoring { return GGTheme.accent }
+        if cm.isWatchReachable { return .green }
+        if cm.isWatchConnected { return .orange }
+        return GGTheme.danger
+    }
+
+    private var calibrationLabel: String {
+        if cm.isWatchCalibrating {
+            return "Calibrating… \(cm.calibrationTimeRemaining)s"
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
+        if let cal = cm.lastCalibrationResults {
+            let f = RelativeDateTimeFormatter()
+            f.unitsStyle = .short
+            return "Calibrated \(f.localizedString(for: cal.timestamp, relativeTo: Date()))"
+        }
+        return "Never calibrated"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(connectionColor.opacity(0.15))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "applewatch")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(connectionColor)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(connectionLabel)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(GGTheme.text1)
+                    Text(calibrationLabel)
+                        .font(.system(size: 13))
+                        .foregroundColor(GGTheme.text2)
+                }
+                Spacer()
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(GGTheme.card)
+        .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
+        .overlay(RoundedRectangle(cornerRadius: GGTheme.radius).stroke(GGTheme.cardBorder, lineWidth: 1))
+    }
+}
+
+struct OfflineSettingsBanner: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "icloud.slash")
+                .foregroundColor(GGTheme.warn)
+            Text("Settings queued — Watch offline. Changes sync when reachable.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(GGTheme.text2)
+            Spacer()
+        }
+        .padding(14)
+        .background(GGTheme.warn.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(GGTheme.warn.opacity(0.25), lineWidth: 1))
+    }
+}
+
+struct SavedToast: View {
+    let queued: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: queued ? "clock.badge.checkmark" : "checkmark.circle.fill")
+                .foregroundColor(queued ? GGTheme.warn : GGTheme.accent)
+            Text(queued ? "Saved — queued for Watch" : "Saved to Watch")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(GGTheme.text1)
+            Spacer()
+        }
+        .padding(14)
+        .background(GGTheme.card)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(GGTheme.accent.opacity(0.25), lineWidth: 1))
     }
 }
 
@@ -231,7 +370,7 @@ struct HapticCard: View {
 
             Toggle(isOn: $repeatHaptics) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Repeat during freeze")
+                    Text("Repeat during assist")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(GGTheme.text1)
                     Text("Continue pulsing during prolonged freezing")
@@ -251,9 +390,9 @@ struct DetectionCard: View {
     @Binding var sensitivity: Double
     @Binding var adaptive: Bool
     let onUpdate: () -> Void
-    
+
     @State private var presetMode: String = "custom"
-    
+
     private func applyPreset() {
         switch presetMode {
         case "everyday":
@@ -270,7 +409,7 @@ struct DetectionCard: View {
         }
         onUpdate()
     }
-    
+
     private func updatePresetFromSettings() {
         if sensitivity == 1.3 && adaptive == true { presetMode = "everyday" }
         else if sensitivity == 2.0 && adaptive == true { presetMode = "exercise" }
@@ -292,8 +431,7 @@ struct DetectionCard: View {
     var body: some View {
         SettingSection(title: "DETECTION", icon: "sensor.fill") {
             VStack(alignment: .leading, spacing: 16) {
-                
-                // Preset Picker
+
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Detection Mode")
                         .font(.system(size: 15, weight: .medium))
@@ -307,10 +445,10 @@ struct DetectionCard: View {
                     .pickerStyle(.segmented)
                     .onChange(of: presetMode) { _, _ in applyPreset() }
                 }
-                
+
                 if presetMode == "custom" {
                     Divider().background(GGTheme.text3.opacity(0.2))
-                    
+
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Sensitivity")
@@ -323,9 +461,9 @@ struct DetectionCard: View {
                         }
                         Slider(value: $sensitivity, in: 0.5...3.0, step: 0.1)
                             .tint(GGTheme.accent)
-                            .onChange(of: sensitivity) { _, _ in 
+                            .onChange(of: sensitivity) { _, _ in
                                 presetMode = "custom"
-                                onUpdate() 
+                                onUpdate()
                             }
                         Text("Lower = more sensitive")
                             .font(.system(size: 11))
@@ -347,9 +485,9 @@ struct DetectionCard: View {
                         }
                     }
                     .tint(GGTheme.accent)
-                    .onChange(of: adaptive) { _, _ in 
+                    .onChange(of: adaptive) { _, _ in
                         presetMode = "custom"
-                        onUpdate() 
+                        onUpdate()
                     }
                 }
             }
@@ -438,6 +576,10 @@ struct DataCard: View {
 // MARK: - About Card
 
 struct AboutCard: View {
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
+    }
+
     var body: some View {
         SettingSection(title: "ABOUT", icon: "info.circle") {
             Text("GaitGuard is a wellness and activity monitoring tool. It is not intended to diagnose, treat, cure, or prevent any disease or medical condition.")
@@ -451,7 +593,7 @@ struct AboutCard: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(GGTheme.text1)
                 Spacer()
-                Text("1.2.0")
+                Text(appVersion)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundColor(GGTheme.text2)
             }
@@ -465,14 +607,19 @@ struct CalibrationGuideSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var cm: WatchConnectivityManager
     @State private var step = 1
-    
+    @State private var sawCalibrating = false
+    @State private var completedFromResults = false
+
+    private var isComplete: Bool {
+        completedFromResults || (sawCalibrating && !cm.isWatchCalibrating && cm.lastCalibrationResults != nil)
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
                 GGTheme.bg.ignoresSafeArea()
-                
+
                 VStack(spacing: 24) {
-                    // Header
                     VStack(spacing: 8) {
                         Image(systemName: "tuningfork")
                             .font(.system(size: 40))
@@ -487,8 +634,7 @@ struct CalibrationGuideSheet: View {
                             .padding(.horizontal)
                     }
                     .padding(.top, 30)
-                    
-                    // Steps
+
                     VStack(spacing: 0) {
                         CalibStepRow(
                             number: 1,
@@ -503,31 +649,30 @@ struct CalibrationGuideSheet: View {
                             title: "Open Watch App",
                             desc: "Open GaitGuard on your Apple Watch and tap 'Calibrate'.",
                             isActive: step >= 2,
-                            isDone: step > 2
+                            isDone: step > 2 || cm.isWatchCalibrating || isComplete
                         )
-                        CalibStepConnector(isActive: step >= 3)
+                        CalibStepConnector(isActive: step >= 3 || cm.isWatchCalibrating)
                         CalibStepRow(
                             number: 3,
                             title: "Walk Normally",
                             desc: "Walk continuously at your normal, comfortable pace for 30 seconds.",
-                            isActive: step >= 3,
-                            isDone: step > 3
+                            isActive: step >= 3 || cm.isWatchCalibrating,
+                            isDone: isComplete
                         )
                     }
                     .padding(.horizontal, 20)
-                    
+
                     Spacer()
-                    
-                    // Live Feedback Box
+
                     if cm.isWatchCalibrating {
                         VStack(spacing: 12) {
                             Text("Calibrating...")
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(GGTheme.accent)
-                            
+
                             ProgressView(value: cm.calibrationProgress)
                                 .tint(GGTheme.accent)
-                            
+
                             Text("\(cm.calibrationTimeRemaining)s remaining")
                                 .font(.system(size: 14, weight: .medium, design: .rounded))
                                 .foregroundColor(GGTheme.text2)
@@ -537,12 +682,11 @@ struct CalibrationGuideSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
                         .overlay(RoundedRectangle(cornerRadius: GGTheme.radius).stroke(GGTheme.accent.opacity(0.3), lineWidth: 1))
                         .padding(.horizontal, 20)
-                        .onAppear { step = 3 }
-                    } else if step == 3 {
+                    } else if isComplete {
                         VStack(spacing: 12) {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 32))
-                                .foregroundColor(.green)
+                                .foregroundColor(GGTheme.accent)
                             Text("Calibration Complete")
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(GGTheme.text1)
@@ -551,23 +695,44 @@ struct CalibrationGuideSheet: View {
                         .background(GGTheme.card)
                         .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
                         .padding(.horizontal, 20)
+                    } else if step >= 3 {
+                        VStack(spacing: 10) {
+                            Image(systemName: "applewatch")
+                                .font(.system(size: 28))
+                                .foregroundColor(GGTheme.accent)
+                            Text("Waiting for Watch…")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(GGTheme.text1)
+                            Text("Tap Calibrate on your Watch and walk for 30 seconds. This screen updates when results arrive.")
+                                .font(.system(size: 13))
+                                .foregroundColor(GGTheme.text2)
+                                .multilineTextAlignment(.center)
+                        }
+                        .padding(20)
+                        .background(GGTheme.card)
+                        .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
+                        .padding(.horizontal, 20)
                     }
-                    
+
                     Button(action: {
-                        if step < 3 { step += 1 }
-                        else { dismiss() }
+                        if isComplete {
+                            dismiss()
+                        } else if step < 3 {
+                            step += 1
+                        }
+                        // On step 3 without results: no false Complete — stay waiting
                     }) {
-                        Text(step < 3 ? "Next" : "Done")
+                        Text(buttonTitle)
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
-                            .background(GGTheme.accent)
+                            .background(buttonEnabled ? GGTheme.accent : GGTheme.text3.opacity(0.4))
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
-                    .disabled(step == 3 && cm.isWatchCalibrating)
+                    .disabled(!buttonEnabled)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -577,7 +742,37 @@ struct CalibrationGuideSheet: View {
                         .foregroundColor(GGTheme.text2)
                 }
             }
+            .onChange(of: cm.isWatchCalibrating) { _, calibrating in
+                if calibrating {
+                    sawCalibrating = true
+                    step = 3
+                }
+            }
+            .onChange(of: cm.lastCalibrationResults?.timestamp) { _, _ in
+                if sawCalibrating || cm.lastCalibrationResults != nil {
+                    completedFromResults = true
+                    step = 3
+                }
+            }
+            .onAppear {
+                if cm.isWatchCalibrating {
+                    sawCalibrating = true
+                    step = 3
+                }
+            }
         }
+    }
+
+    private var buttonTitle: String {
+        if isComplete { return "Done" }
+        if step < 3 { return "Next" }
+        return "Waiting…"
+    }
+
+    private var buttonEnabled: Bool {
+        if isComplete { return true }
+        if step < 3 { return true }
+        return false // Waiting for Watch — no false Complete
     }
 }
 
@@ -587,12 +782,12 @@ struct CalibStepRow: View {
     let desc: String
     let isActive: Bool
     let isDone: Bool
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(isDone ? .green : (isActive ? GGTheme.accent : GGTheme.card))
+                    .fill(isDone ? GGTheme.accent : (isActive ? GGTheme.accent : GGTheme.card))
                     .frame(width: 32, height: 32)
                 if isDone {
                     Image(systemName: "checkmark")
@@ -604,7 +799,7 @@ struct CalibStepRow: View {
                         .foregroundColor(isActive ? .white : GGTheme.text3)
                 }
             }
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))

@@ -26,6 +26,24 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ResetToFactorySettings"))) { _ in
             engine.resetToFactorySettings()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RemoteStartMonitoring"))) { _ in
+            guard !isActive else { return }
+            withAnimation(.easeInOut(duration: 0.3)) { isActive = true }
+            gaitTrackingManager.startTracking()
+            engine.startMonitoring()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RemoteStopMonitoring"))) { _ in
+            guard isActive else { return }
+            withAnimation(.easeInOut(duration: 0.3)) { isActive = false }
+            gaitTrackingManager.stopTracking()
+            engine.stopMonitoring(reason: "remote")
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MonitoringSessionExpired"))) { _ in
+            guard isActive else { return }
+            withAnimation(.easeInOut(duration: 0.3)) { isActive = false }
+            gaitTrackingManager.stopTracking()
+            engine.stopMonitoring(reason: "session_expired")
+        }
     }
 }
 
@@ -36,22 +54,54 @@ struct WatchPager: View {
     @ObservedObject var gaitTrackingManager: GaitTrackingManager
     @Binding var isActive: Bool
     @State private var page = 0
+    @ObservedObject private var conn = WatchConnectivityManager.shared
+
+    private let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
 
     var body: some View {
-        TabView(selection: $page) {
-            ScorePage(engine: engine, gaitTrackingManager: gaitTrackingManager, isActive: $isActive)
-                .tag(0)
-            MetricsPage(engine: engine, isActive: isActive)
-                .tag(1)
-            StatsPage(engine: engine, isActive: $isActive)
-                .tag(2)
+        ZStack(alignment: .top) {
+            TabView(selection: $page) {
+                ScorePage(engine: engine, gaitTrackingManager: gaitTrackingManager, isActive: $isActive)
+                    .tag(0)
+                MetricsPage(engine: engine, isActive: isActive)
+                    .tag(1)
+                StatsPage(engine: engine, isActive: $isActive)
+                    .tag(2)
+            }
+            .tabViewStyle(.page)
+            .containerBackground(
+                isActive ? Color(red: 0.05, green: 0.14, blue: 0.12).gradient
+                         : Color(red: 0.04, green: 0.06, blue: 0.12).gradient,
+                for: .navigation
+            )
+
+            if conn.assistBannerVisible, let type = conn.assistBannerType {
+                AssistBanner(type: type, accent: accent)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(10)
+            }
         }
-        .tabViewStyle(.page)
-        .containerBackground(
-            isActive ? Color(red: 0.05, green: 0.14, blue: 0.12).gradient
-                     : Color(red: 0.04, green: 0.06, blue: 0.12).gradient,
-            for: .navigation
-        )
+        .animation(.easeInOut(duration: 0.25), value: conn.assistBannerVisible)
+    }
+}
+
+struct AssistBanner: View {
+    let type: String
+    let accent: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: type == "turn" ? "arrow.turn.up.right" : "figure.walk")
+                .font(.system(size: 11, weight: .bold))
+            Text("Assist · \(type.capitalized)")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+        }
+        .foregroundColor(.black)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(accent)
+        .clipShape(Capsule())
+        .padding(.top, 4)
     }
 }
 
@@ -67,26 +117,19 @@ struct ScorePage: View {
 
     private var gaitScore: Int {
         guard isActive else { return 0 }
-        var penalty = Double(engine.todaysTotal * 12)
-        let offset = Double(engine.currentSteps) / 150.0
-        penalty = max(0, penalty - offset)
-        return max(0, min(100, Int(100.0 - penalty)))
+        return GaitScoreCalculator.score(todaysAssists: engine.todaysTotal, steps: engine.currentSteps)
     }
 
     private var scoreLabel: String {
-        guard isActive else { return "Idle" }
-        if gaitScore >= 85 { return "Excellent" }
-        if gaitScore >= 65 { return "Good" }
-        if gaitScore >= 40 { return "Fair" }
-        return "Needs Attention"
+        GaitScoreCalculator.label(for: gaitScore, isMonitoring: isActive)
     }
 
     private var scoreColor: Color {
-        guard isActive else { return .gray }
+        guard isActive else { return accent.opacity(0.7) }
         if gaitScore >= 85 { return accent }
         if gaitScore >= 65 { return .green }
         if gaitScore >= 40 { return .orange }
-        return .red
+        return Color(red: 1.0, green: 0.42, blue: 0.38)
     }
 
     private var progress: Double {
@@ -95,8 +138,11 @@ struct ScorePage: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            Spacer().frame(height: 2)
+        VStack(spacing: 6) {
+            Text("SCORE")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .tracking(1.5)
+                .foregroundColor(.gray)
 
             HStack {
                 if conn.isWatchReachable {
@@ -111,47 +157,52 @@ struct ScorePage: View {
             ZStack {
                 Circle()
                     .stroke(Color.gray.opacity(0.15), lineWidth: 6)
-                    .frame(width: 110, height: 110)
+                    .frame(width: 100, height: 100)
 
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(
-                        AngularGradient(
-                            colors: [scoreColor.opacity(0.4), scoreColor],
-                            center: .center,
-                            startAngle: .degrees(0),
-                            endAngle: .degrees(360 * progress)
-                        ),
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                    )
-                    .frame(width: 110, height: 110)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.8), value: progress)
+                if isActive {
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            AngularGradient(
+                                colors: [scoreColor.opacity(0.4), scoreColor],
+                                center: .center,
+                                startAngle: .degrees(0),
+                                endAngle: .degrees(360 * progress)
+                            ),
+                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                        )
+                        .frame(width: 100, height: 100)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 0.8), value: progress)
 
-                VStack(spacing: 0) {
-                    Text("GAIT SCORE")
-                        .font(.system(size: 8, weight: .semibold, design: .rounded))
-                        .tracking(1.2)
-                        .foregroundColor(.gray)
-
-                    if isActive {
+                    VStack(spacing: 0) {
+                        Text("GAIT SCORE")
+                            .font(.system(size: 8, weight: .semibold, design: .rounded))
+                            .tracking(1.2)
+                            .foregroundColor(.gray)
                         Text("\(gaitScore)")
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                             .contentTransition(.numericText())
-                    } else {
-                        Text("--")
-                            .font(.system(size: 38, weight: .bold, design: .rounded))
-                            .foregroundColor(Color.gray.opacity(0.4))
+                    }
+                } else {
+                    Circle()
+                        .fill(accent.opacity(0.1))
+                        .frame(width: 88, height: 88)
+                    VStack(spacing: 2) {
+                        Image(systemName: "figure.walk")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundColor(accent)
+                        Text("Ready")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
                     }
                 }
             }
 
             Text(scoreLabel)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundColor(scoreColor)
-
-            Spacer().frame(height: 4)
 
             Button(action: {
                 withAnimation(.easeInOut(duration: 0.3)) {
@@ -162,7 +213,7 @@ struct ScorePage: View {
                     engine.startMonitoring()
                 } else {
                     gaitTrackingManager.stopTracking()
-                    engine.stopMonitoring()
+                    engine.stopMonitoring(reason: "user")
                 }
             }) {
                 Text(isActive ? "STOP" : "START")
@@ -172,12 +223,28 @@ struct ScorePage: View {
                     .padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
-            .tint(isActive ? .red.opacity(0.8) : accent)
+            .tint(isActive ? Color(red: 1.0, green: 0.42, blue: 0.38).opacity(0.85) : accent)
 
             PageDots(current: 0, total: 3)
                 .padding(.top, 2)
         }
         .padding(.horizontal, 8)
+        .onChange(of: gaitScore) { _, newScore in
+            if isActive {
+                WatchConnectivityManager.shared.updateCachedGaitScore(newScore)
+            }
+        }
+        .onChange(of: isActive) { _, active in
+            if active {
+                WatchConnectivityManager.shared.updateCachedGaitScore(gaitScore)
+            }
+        }
+        .onChange(of: engine.monitoringStoppedDueToBattery) { _, stopped in
+            if stopped && isActive {
+                withAnimation { isActive = false }
+                gaitTrackingManager.stopTracking()
+            }
+        }
     }
 }
 
@@ -190,7 +257,12 @@ struct MetricsPage: View {
     private let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 12) {
+            Text("METRICS")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .tracking(1.5)
+                .foregroundColor(.gray)
+
             Spacer()
 
             if isActive {
@@ -212,8 +284,8 @@ struct MetricsPage: View {
                 VStack(spacing: 8) {
                     Image(systemName: "figure.walk")
                         .font(.system(size: 28))
-                        .foregroundColor(.gray.opacity(0.3))
-                    Text("Start monitoring to see metrics")
+                        .foregroundColor(accent.opacity(0.35))
+                    Text("Ready — start to see metrics")
                         .font(.system(size: 11))
                         .foregroundColor(.gray)
                         .multilineTextAlignment(.center)
@@ -260,7 +332,12 @@ struct StatsPage: View {
     private let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
+            Text("TODAY")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .tracking(1.5)
+                .foregroundColor(.gray)
+
             Spacer()
 
             HStack(spacing: 0) {
@@ -307,13 +384,13 @@ struct StatsPage: View {
             } else if engine.isCalibrationUnstable() {
                 Label("Calibration Failed", systemImage: "xmark.circle.fill")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.red)
+                    .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.38))
             }
 
             if engine.monitoringStoppedDueToBattery {
                 Label("Low Battery", systemImage: "battery.25")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.red)
+                    .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.38))
             }
 
             if !isActive {
@@ -337,10 +414,7 @@ struct StatsPage: View {
 struct CalibrationView: View {
     @ObservedObject var engine: MotionDetector
 
-    // A visual multiplier based on movement
     private var pulseScale: CGFloat {
-        // Normal walking is ~1.2 - 2.5 magnitude
-        // Let's cap at 2.5 for animation
         let capped = min(max(engine.currentMagnitude, 1.0), 3.0)
         return CGFloat(1.0 + (capped - 1.0) * 0.3)
     }
