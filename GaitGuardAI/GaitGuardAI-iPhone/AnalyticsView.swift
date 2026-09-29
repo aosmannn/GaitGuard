@@ -90,7 +90,7 @@ struct OverviewStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            OverviewItem(value: "\(events.count)", label: "Total", color: .blue)
+            OverviewItem(value: "\(events.count)", label: "Total", color: GGTheme.accent)
             OverviewItem(value: "\(todayCount)", label: "Today", color: GGTheme.accent)
             OverviewItem(value: "\(weekCount)", label: "7 Days", color: .cyan)
             OverviewItem(
@@ -137,16 +137,16 @@ struct EventBreakdownSection: View {
     private var turns: Int { events.filter { $0.type == "turn" }.count }
 
     var body: some View {
-        ExpandableCard(title: "What types of events happened?", icon: "chart.bar.fill", expanded: $expanded) {
+        ExpandableCard(title: "What types of assists happened?", icon: "chart.bar.fill", expanded: $expanded) {
             HStack(spacing: 16) {
-                BreakdownBar(label: "Start", count: starts, total: events.count, color: .blue)
+                BreakdownBar(label: "Start", count: starts, total: events.count, color: GGTheme.accent)
                 BreakdownBar(label: "Turn", count: turns, total: events.count, color: .orange)
             }
             .padding(.top, 4)
 
             Chart {
                 BarMark(x: .value("Type", "Start"), y: .value("Count", starts))
-                    .foregroundStyle(.blue.gradient)
+                    .foregroundStyle(GGTheme.accent.gradient)
                     .cornerRadius(8)
                 BarMark(x: .value("Type", "Turn"), y: .value("Count", turns))
                     .foregroundStyle(.orange.gradient)
@@ -208,7 +208,7 @@ struct TimePatternSection: View {
     @State private var expanded = false
 
     var body: some View {
-        ExpandableCard(title: "When do events occur most?", icon: "clock.fill", expanded: $expanded) {
+        ExpandableCard(title: "When do assists occur most?", icon: "clock.fill", expanded: $expanded) {
             let hourData = Dictionary(grouping: events) {
                 Calendar.current.component(.hour, from: $0.timestamp)
             }.mapValues { $0.count }
@@ -263,7 +263,7 @@ struct SeveritySection: View {
     private var high: Int { events.filter { $0.severity >= 0.66 }.count }
 
     var body: some View {
-        ExpandableCard(title: "How severe are the events?", icon: "exclamationmark.triangle.fill", expanded: $expanded) {
+        ExpandableCard(title: "How strong were the assists?", icon: "exclamationmark.triangle.fill", expanded: $expanded) {
             HStack(spacing: 12) {
                 SeverityPill(label: "Low", count: low, color: GGTheme.accent)
                 SeverityPill(label: "Med", count: med, color: .orange)
@@ -312,14 +312,19 @@ struct SeverityPill: View {
     }
 }
 
-// MARK: - Motion Section (expandable)
+// MARK: - Motion Section (Advanced / collapsed by default)
 
 struct MotionSection: View {
     let data: [AccelerometerData]
-    @State private var expanded = true
+    @State private var expanded = false
 
     var body: some View {
-        ExpandableCard(title: "What is my current motion?", icon: "waveform.path.ecg", expanded: $expanded) {
+        ExpandableCard(title: "Advanced · Motion (XYZ)", icon: "waveform.path.ecg", expanded: $expanded) {
+            Text("Raw accelerometer stream for debugging. Not needed for everyday use.")
+                .font(.system(size: 12))
+                .foregroundColor(GGTheme.text3)
+                .padding(.bottom, 4)
+
             let display = Array(data.suffix(100))
             Chart {
                 ForEach(Array(display.enumerated()), id: \.offset) { i, pt in
@@ -330,7 +335,7 @@ struct MotionSection: View {
                         .foregroundStyle(.green.opacity(0.8))
                         .interpolationMethod(.catmullRom)
                     LineMark(x: .value("T", i), y: .value("Z", pt.z))
-                        .foregroundStyle(.blue.opacity(0.8))
+                        .foregroundStyle(GGTheme.accent.opacity(0.8))
                         .interpolationMethod(.catmullRom)
                 }
             }
@@ -347,7 +352,7 @@ struct MotionSection: View {
             HStack(spacing: 16) {
                 LegendDot(color: .red, label: "X")
                 LegendDot(color: .green, label: "Y")
-                LegendDot(color: .blue, label: "Z")
+                LegendDot(color: GGTheme.accent, label: "Z")
             }
             .padding(.top, 6)
         }
@@ -526,7 +531,7 @@ struct EmptyTrends: View {
                 Text("No Trends Yet")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(GGTheme.text1)
-                Text("Start monitoring on your watch to see trends, charts, and patterns over time.")
+                Text("Start monitoring from Home or your Watch to see trends, charts, and patterns over time.")
                     .font(.system(size: 14))
                     .foregroundColor(GGTheme.text2)
                     .multilineTextAlignment(.center)
@@ -534,10 +539,10 @@ struct EmptyTrends: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                TrendPreviewRow(icon: "chart.bar.fill", text: "Event breakdown by type")
+                TrendPreviewRow(icon: "chart.bar.fill", text: "Assist breakdown by type")
                 TrendPreviewRow(icon: "clock.fill", text: "Time-of-day patterns")
                 TrendPreviewRow(icon: "exclamationmark.triangle.fill", text: "Severity distribution")
-                TrendPreviewRow(icon: "waveform.path.ecg", text: "Live motion visualization")
+                TrendPreviewRow(icon: "calendar", text: "Weekly support trends")
             }
             .padding(16)
             .background(GGTheme.card)
