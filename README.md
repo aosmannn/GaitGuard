@@ -10,16 +10,19 @@ This is a cueing aid and prototype. It is not a medical device. Use with supervi
 
 ### On the Apple Watch
 - **Freeze detection**: Detects when you attempt to start walking or turn but don’t produce steps
-- **Rhythmic haptic cueing**: Metronome-style pulses to help break freezes (different rhythms for start vs turn)
+- **Rhythmic haptic cueing**: Metronome-style pulses to help break freezes (different rhythms for start vs turn), with a brief on-screen assist banner
 - **Step tracking**: Live step count, cadence, and distance via CMPedometer
 - **Calibration**: 30-second walk to personalize detection thresholds
 - **Background monitoring**: Uses HealthKit workout sessions so tracking continues when the screen is off
+- **Pager pages**: SCORE / METRICS / TODAY with page dots
 
 ### On the iPhone
-- **Dashboard**: Connection status, live steps/cadence/distance, event timeline
-- **Analytics**: Charts by event type, hour, and severity
-- **Remote controls**: Adjust sensitivity, haptic pattern, and intensity from the phone
-- **Calibration results**: View baseline threshold and stats after calibration
+- **Home dashboard**: Connection status, Ready vs live gait score, today’s assists, remote **Start/Stop** when the Watch is reachable
+- **History**: Assist timeline with severity labels; daily notes; clear requires confirmation
+- **Trends**: Charts by assist type, hour, and severity (raw XYZ motion under Advanced)
+- **Settings** (formerly Profile): Haptics, detection presets, calibration guide, test vibration, factory reset
+- **Calibration results**: Persisted on the phone and shown after calibration
+- **Synced gait score**: Watch is the source of truth; phone displays the score the Watch sends
 
 ---
 
@@ -55,6 +58,7 @@ The app uses Core Motion on the watch:
 2. Run **GaitGuardAI-iPhone** on your iPhone (this installs the Watch app too)
 3. Run **GaitGuard Watch App** on your paired Apple Watch
 4. Launch both apps and wait for WatchConnectivity to connect
+5. Start monitoring from the Watch **or** from iPhone Home/Settings when the Watch is reachable
 
 ### HealthKit (for background monitoring)
 - Enable the HealthKit capability for the Watch app in the Apple Developer portal
@@ -67,17 +71,17 @@ The app uses Core Motion on the watch:
 ```
 GaitGuardAI/
 ├── GaitGuardAI Watch App/
-│   ├── ContentView.swift          # Watch UI
+│   ├── ContentView.swift          # Watch UI (SCORE / METRICS / TODAY)
 │   ├── MotionDetector.swift       # Motion processing, freeze detection, cueing, step counting
 │   ├── GaitTrackingManager.swift  # HKWorkoutSession for background
 │   └── GaitGuardAIApp.swift
 ├── GaitGuardAI-iPhone/
-│   ├── ContentView.swift          # iPhone dashboard
-│   ├── AnalyticsView.swift        # Charts and insights
+│   ├── ContentView.swift          # Home + History
+│   ├── AnalyticsView.swift        # Trends
 │   ├── RemoteControlsView.swift   # Settings
 │   └── GaitGuardAIiPhoneApp.swift
 └── Shared/
-    └── WatchConnectivityManager.swift  # Watch ↔ iPhone sync
+    └── WatchConnectivityManager.swift  # Watch ↔ iPhone sync (score, assists, remote start/stop)
 ```
 
 ---
