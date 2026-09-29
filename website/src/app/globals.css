@@ -1,59 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  --bg: #fbf9f4;
-  --bg-rgb: 251, 249, 244;
-  --ink: #23211d;
-  --ink-rgb: 35, 33, 29;
-  --ink-2: #33302b;
-  --ink-3: #4a443a;
-  --mute: #6b6459;
-  --mute-2: #7c7466;
-  --mute-3: #8b8375;
-  --line: #e3dfd7;
-  --well: #f1ede5;
-  --paper: #ffffff;
-  --card: #fdf9f3;
+  --bg: #0a0b14;
+  --surface: #12151f;
+  --surface-2: #1a1d2e;
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f4f5fb;
+  --text-2: #a4a8bd;
+  --text-3: #6b7088;
 
-  --accent: #2edeb8;
-  --accent-hover: #1fc9a4;
-  --accent-deep: #149a7c;
-  --accent-tint: #d8f8ef;
-  --accent-ink: #0b5c4a;
+  --accent: #7c8cff;
+  --accent-2: #b58cff;
+  --cue: #ffb547;
+  --good: #4ade9a;
+  --danger: #ff6b7a;
 
-  --hero-g1: #b8f0de;
-  --hero-g2: #c9f5e8;
-  --hero-g3: #e8f7c9;
-  --hero-g4: #a8e8d4;
-  --hero-base-a: #f4fbf8;
-  --hero-base-b: #f0f8f4;
-
-  --shadow: 20, 90, 70;
-  --wrap: 1280px;
-  --pad: clamp(20px, 5vw, 64px);
-  --gap-section: clamp(96px, 12vw, 180px);
+  --wrap: 1200px;
+  --pad: clamp(20px, 5vw, 56px);
+  --gap-section: clamp(88px, 11vw, 160px);
 }
 
 @theme inline {
   --color-bg: var(--bg);
-  --color-ink: var(--ink);
-  --color-ink-2: var(--ink-2);
-  --color-ink-3: var(--ink-3);
-  --color-mute: var(--mute);
-  --color-mute-2: var(--mute-2);
-  --color-mute-3: var(--mute-3);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-line: var(--line);
-  --color-well: var(--well);
-  --color-paper: var(--paper);
-  --color-card: var(--card);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
   --color-accent: var(--accent);
-  --color-accent-hover: var(--accent-hover);
-  --color-accent-deep: var(--accent-deep);
-  --color-accent-tint: var(--accent-tint);
-  --color-accent-ink: var(--accent-ink);
-  --font-sans: var(--font-jakarta);
+  --color-accent-2: var(--accent-2);
+  --color-cue: var(--cue);
+  --color-good: var(--good);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-inter);
 }
 
 * {
@@ -67,22 +49,27 @@ html {
 body {
   margin: 0;
   min-height: 100%;
-  color: var(--ink);
+  color: var(--text);
   background: var(--bg);
-  font-family: var(--font-jakarta), "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: var(--font-inter), system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: clip;
 }
 
 ::selection {
-  background: var(--accent-tint);
-  color: var(--ink);
+  background: rgba(124, 140, 255, 0.35);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 8px;
 }
 
 .wrap {
@@ -92,85 +79,119 @@ a {
   padding-right: var(--pad);
 }
 
-.noise {
-  position: absolute;
-  inset: 0;
-  opacity: 0.4;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  mix-blend-mode: multiply;
+.grad-text {
+  background: linear-gradient(120deg, #a9b4ff 0%, #7c8cff 35%, #c79bff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-.pin {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  flex: none;
-  background-color: var(--accent-deep);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8.75 14.69c3.28 0 5.94-2.66 5.94-5.94V1.65A1.31 1.31 0 0115.99.34c.72 0 1.31.59 1.31 1.31v7.1c0 3.28 2.66 5.94 5.94 5.94h7.1c.72 0 1.31.59 1.31 1.31s-.59 1.31-1.31 1.31h-7.1a5.94 5.94 0 00-5.94 5.94v7.1c0 .72-.59 1.31-1.31 1.31s-1.31-.59-1.31-1.31v-7.1a5.94 5.94 0 00-5.94-5.94h-7.1A1.31 1.31 0 01.34 16c0-.72.59-1.31 1.31-1.31h7.1z' fill='%23000'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8.75 14.69c3.28 0 5.94-2.66 5.94-5.94V1.65A1.31 1.31 0 0115.99.34c.72 0 1.31.59 1.31 1.31v7.1c0 3.28 2.66 5.94 5.94 5.94h7.1c.72 0 1.31.59 1.31 1.31s-.59 1.31-1.31 1.31h-7.1a5.94 5.94 0 00-5.94 5.94v7.1c0 .72-.59 1.31-1.31 1.31s-1.31-.59-1.31-1.31v-7.1a5.94 5.94 0 00-5.94-5.94h-7.1A1.31 1.31 0 01.34 16c0-.72.59-1.31 1.31-1.31h7.1z' fill='%23000'/%3E%3C/svg%3E")
-    center / contain no-repeat;
+.btn-primary {
+  background: linear-gradient(135deg, #7c8cff, #b58cff);
+  color: #0a0b14;
+  box-shadow: 0 18px 40px -16px rgba(124, 140, 255, 0.7);
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  border: 1px solid var(--line);
+  border-radius: 28px;
+}
+
+.aurora {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora::before,
+.aurora::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(90px);
+  opacity: 0.55;
+}
+.aurora::before {
+  width: 560px;
+  height: 560px;
+  left: -140px;
+  top: -200px;
+  background: #5b6bff;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+.aurora::after {
+  width: 480px;
+  height: 480px;
+  right: -120px;
+  top: -120px;
+  background: #9b5cff;
+  animation: drift 22s ease-in-out infinite alternate-reverse;
+}
+
+.grid-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
+}
+
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(60px, 40px, 0) scale(1.15); }
 }
 
 @keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes float-soft {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
-@keyframes ring-draw {
-  to {
-    stroke-dashoffset: -180;
-  }
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.7; }
+  100% { transform: scale(2.2); opacity: 0; }
 }
 
-.anim-up {
-  animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.anim-up-1 {
-  animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
-}
-
-.anim-up-2 {
-  animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
-}
-
-.anim-float {
-  animation: float-soft 5.5s ease-in-out infinite;
-}
-
-.ring-spin {
-  stroke-dasharray: 200;
-  stroke-dashoffset: 48;
-  animation: ring-draw 9s linear infinite;
+.anim-up { animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-up-1 { animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both; }
+.anim-up-2 { animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both; }
+.anim-up-3 { animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.34s both; }
+.anim-float { animation: float-soft 6s ease-in-out infinite; }
+.anim-slide { animation: slide-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: currentColor;
+  animation: pulse-ring 1.8s ease-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  .anim-up,
-  .anim-up-1,
-  .anim-up-2,
-  .anim-float,
-  .ring-spin {
+  html { scroll-behavior: auto; }
+  .anim-up, .anim-up-1, .anim-up-2, .anim-up-3, .anim-float, .anim-slide,
+  .aurora::before, .aurora::after, .pulse-dot::after {
     animation: none !important;
   }
+}
+
+@keyframes sync-dot {
+  from { left: 0; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  to { left: 100%; opacity: 0; }
 }
