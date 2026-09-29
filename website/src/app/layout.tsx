@@ -1,12 +1,11 @@
-import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
-  weight: ["400", "500", "600", "700"],
 });
 
 const siteUrl =
@@ -39,9 +38,13 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#0a0b14",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${jakarta.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} h-full`}>
       <body className="min-h-full antialiased">{children}</body>
     </html>
   );
