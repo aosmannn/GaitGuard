@@ -1,0 +1,181 @@
+@import "tailwindcss";
+
+:root {
+  --bg-deep: #05080f;
+  --bg-navy: #0a1220;
+  --bg-panel: #0f1a2c;
+  --bg-elevated: #142238;
+  --teal: #2edeb8;
+  --teal-dim: rgba(46, 222, 184, 0.14);
+  --teal-glow: rgba(46, 222, 184, 0.35);
+  --text: #e8eef7;
+  --text-muted: #8b9bb4;
+  --text-soft: #b6c3d6;
+  --border: rgba(148, 175, 210, 0.12);
+  --border-strong: rgba(46, 222, 184, 0.28);
+  --danger-soft: #f0b4a8;
+}
+
+@theme inline {
+  --color-bg-deep: var(--bg-deep);
+  --color-bg-navy: var(--bg-navy);
+  --color-bg-panel: var(--bg-panel);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-teal: var(--teal);
+  --color-teal-dim: var(--teal-dim);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-soft: var(--text-soft);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --font-sans: var(--font-manrope);
+  --font-display: var(--font-sora);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(46, 222, 184, 0.12), transparent 55%),
+    radial-gradient(900px 500px at -10% 20%, rgba(36, 99, 165, 0.18), transparent 50%),
+    linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-navy) 42%, #071018 100%);
+  background-attachment: fixed;
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(46, 222, 184, 0.28);
+  color: #fff;
+}
+
+.font-display {
+  font-family: var(--font-sora), system-ui, sans-serif;
+}
+
+.glass {
+  background: linear-gradient(
+    160deg,
+    rgba(20, 34, 56, 0.72) 0%,
+    rgba(10, 18, 32, 0.55) 100%
+  );
+  border: 1px solid var(--border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.glow-teal {
+  box-shadow:
+    0 0 0 1px rgba(46, 222, 184, 0.18),
+    0 0 40px rgba(46, 222, 184, 0.12);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes ring-spin {
+  to {
+    stroke-dashoffset: -220;
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes haptic-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(46, 222, 184, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(46, 222, 184, 0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade-up-delay-1 {
+  animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.animate-fade-up-delay-2 {
+  animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+}
+
+.animate-fade-up-delay-3 {
+  animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.36s both;
+}
+
+.animate-float {
+  animation: float-y 6s ease-in-out infinite;
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 3.2s ease-in-out infinite;
+}
+
+.animate-haptic {
+  animation: haptic-pulse 2.4s ease-out infinite;
+}
+
+.ring-track {
+  stroke-dasharray: 220;
+  stroke-dashoffset: 55;
+  animation: ring-spin 8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .animate-fade-up,
+  .animate-fade-up-delay-1,
+  .animate-fade-up-delay-2,
+  .animate-fade-up-delay-3,
+  .animate-float,
+  .animate-soft-pulse,
+  .animate-haptic,
+  .ring-track {
+    animation: none !important;
+  }
+}
