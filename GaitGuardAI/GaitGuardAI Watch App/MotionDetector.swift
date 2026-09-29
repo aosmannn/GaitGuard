@@ -55,6 +55,9 @@ class MotionDetector: ObservableObject {
         loadCalibrationData()
         loadTodayEvents()
         updateTodaysTotal()
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("ClearAssistEvents"), object: nil, queue: .main) { [weak self] _ in
+            self?.clearTodayEvents()
+        }
         // Suppress CoreMotion preference reading warnings
         // This is a harmless system-level warning that occurs when CoreMotion
         // tries to read managed preferences (which apps don't have access to)
@@ -84,6 +87,14 @@ class MotionDetector: ObservableObject {
         }
     }
     
+    /// History cleared on iPhone: zero today's count so both screens agree.
+    func clearTodayEvents() {
+        assistEventsToday = []
+        lastAssistTime = nil
+        todaysTotal = 0
+        saveTodayEvents()
+    }
+
     private func updateTodaysTotal() {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())

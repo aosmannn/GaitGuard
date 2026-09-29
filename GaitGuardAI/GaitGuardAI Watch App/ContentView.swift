@@ -1,9 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var engine = MotionDetector()
+    @StateObject private var engine: MotionDetector
     @StateObject private var gaitTrackingManager: GaitTrackingManager
-    @State private var isActive = false
 
     init() {
         let detector = MotionDetector()
@@ -11,72 +10,66 @@ struct ContentView: View {
         _gaitTrackingManager = StateObject(wrappedValue: GaitTrackingManager(motionDetector: detector))
     }
 
+    private func start() {
+        guard !engine.isMonitoring else { return }
+        gaitTrackingManager.startTracking()
+        engine.startMonitoring()
+        // Monitoring can refuse to start (low battery, no sensor): don't leave a workout running.
+        if !engine.isMonitoring { gaitTrackingManager.stopTracking() }
+    }
+
+    private func stop(reason: String) {
+        guard engine.isMonitoring else { return }
+        gaitTrackingManager.stopTracking()
+        engine.stopMonitoring(reason: reason)
+    }
+
     var body: some View {
         Group {
             if engine.isCalibrating {
                 CalibrationView(engine: engine)
             } else {
-                WatchPager(
-                    engine: engine,
-                    gaitTrackingManager: gaitTrackingManager,
-                    isActive: $isActive
-                )
+                WatchPager(engine: engine, onStart: start, onStop: { stop(reason: "user") })
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: engine.isMonitoring)
+        .onAppear { WatchConnectivityManager.shared.requestSync() }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ResetToFactorySettings"))) { _ in
             engine.resetToFactorySettings()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RemoteStartMonitoring"))) { _ in
-            guard !isActive else { return }
-            withAnimation(.easeInOut(duration: 0.3)) { isActive = true }
-            gaitTrackingManager.startTracking()
-            engine.startMonitoring()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RemoteStopMonitoring"))) { _ in
-            guard isActive else { return }
-            withAnimation(.easeInOut(duration: 0.3)) { isActive = false }
-            gaitTrackingManager.stopTracking()
-            engine.stopMonitoring(reason: "remote")
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MonitoringSessionExpired"))) { _ in
-            guard isActive else { return }
-            withAnimation(.easeInOut(duration: 0.3)) { isActive = false }
-            gaitTrackingManager.stopTracking()
-            engine.stopMonitoring(reason: "session_expired")
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RemoteStartMonitoring"))) { _ in start() }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RemoteStopMonitoring"))) { _ in stop(reason: "remote") }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MonitoringSessionExpired"))) { _ in stop(reason: "session_expired") }
+        .onChange(of: engine.monitoringStoppedDueToBattery) { _, stopped in
+            if stopped { gaitTrackingManager.stopTracking() }
         }
     }
 }
 
-// MARK: - Horizontal Pager (Digital Crown scrolls left/right)
+// MARK: - Pager
 
 struct WatchPager: View {
     @ObservedObject var engine: MotionDetector
-    @ObservedObject var gaitTrackingManager: GaitTrackingManager
-    @Binding var isActive: Bool
+    let onStart: () -> Void
+    let onStop: () -> Void
     @State private var page = 0
     @ObservedObject private var conn = WatchConnectivityManager.shared
-
-    private let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
 
     var body: some View {
         ZStack(alignment: .top) {
             TabView(selection: $page) {
-                ScorePage(engine: engine, gaitTrackingManager: gaitTrackingManager, isActive: $isActive)
-                    .tag(0)
-                MetricsPage(engine: engine, isActive: isActive)
-                    .tag(1)
-                StatsPage(engine: engine, isActive: $isActive)
-                    .tag(2)
+                ScorePage(engine: engine, onStart: onStart, onStop: onStop).tag(0)
+                MetricsPage(engine: engine).tag(1)
+                StatsPage(engine: engine).tag(2)
             }
             .tabViewStyle(.page)
             .containerBackground(
-                isActive ? Color(red: 0.05, green: 0.14, blue: 0.12).gradient
-                         : Color(red: 0.04, green: 0.06, blue: 0.12).gradient,
+                (engine.isMonitoring ? GGTheme.accent.opacity(0.35) : GGTheme.bg).gradient,
                 for: .navigation
             )
 
             if conn.assistBannerVisible, let type = conn.assistBannerType {
-                AssistBanner(type: type, accent: accent)
+                AssistBanner(type: type)
                     .transition(.move(edge: .top).combined(with: .opacity))
                     .zIndex(10)
             }
@@ -87,163 +80,76 @@ struct WatchPager: View {
 
 struct AssistBanner: View {
     let type: String
-    let accent: Color
 
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: type == "turn" ? "arrow.turn.up.right" : "figure.walk")
                 .font(.system(size: 11, weight: .bold))
-            Text("Assist · \(type.capitalized)")
+            Text("Cue · \(type.capitalized)")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
         }
         .foregroundColor(.black)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(accent)
+        .background(GGTheme.cue)
         .clipShape(Capsule())
         .padding(.top, 4)
     }
 }
 
-// MARK: - Page 1: Gait Score + Start/Stop
+// MARK: - Page 1: Score + Start/Stop
 
 struct ScorePage: View {
     @ObservedObject var engine: MotionDetector
-    @ObservedObject var gaitTrackingManager: GaitTrackingManager
-    @Binding var isActive: Bool
+    let onStart: () -> Void
+    let onStop: () -> Void
     @ObservedObject private var conn = WatchConnectivityManager.shared
 
-    private let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
-
     private var gaitScore: Int {
-        guard isActive else { return 0 }
+        guard engine.isMonitoring else { return 0 }
         return GaitScoreCalculator.score(todaysAssists: engine.todaysTotal, steps: engine.currentSteps)
-    }
-
-    private var scoreLabel: String {
-        GaitScoreCalculator.label(for: gaitScore, isMonitoring: isActive)
-    }
-
-    private var scoreColor: Color {
-        guard isActive else { return accent.opacity(0.7) }
-        if gaitScore >= 85 { return accent }
-        if gaitScore >= 65 { return .green }
-        if gaitScore >= 40 { return .orange }
-        return Color(red: 1.0, green: 0.42, blue: 0.38)
-    }
-
-    private var progress: Double {
-        guard isActive else { return 0 }
-        return Double(gaitScore) / 100.0
     }
 
     var body: some View {
         VStack(spacing: 6) {
-            Text("SCORE")
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .tracking(1.5)
-                .foregroundColor(.gray)
-
-            HStack {
-                if conn.isWatchReachable {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 10))
-                        .foregroundColor(accent)
-                }
+            HStack(spacing: 4) {
+                Image(systemName: conn.isWatchReachable ? "iphone.radiowaves.left.and.right" : "iphone.slash")
+                    .font(.system(size: 10))
+                    .foregroundColor(conn.isWatchReachable ? GGTheme.good : GGTheme.text3)
+                Text(conn.isWatchReachable ? "Synced" : "Offline")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundColor(GGTheme.text2)
                 Spacer()
             }
             .padding(.horizontal, 4)
 
-            ZStack {
-                Circle()
-                    .stroke(Color.gray.opacity(0.15), lineWidth: 6)
-                    .frame(width: 100, height: 100)
+            GGScoreRing(
+                score: engine.isMonitoring ? gaitScore : nil,
+                label: engine.isMonitoring ? GaitScoreCalculator.label(for: gaitScore, isMonitoring: true) : "Tap start",
+                color: GGTheme.scoreColor(gaitScore, monitoring: engine.isMonitoring),
+                size: 110,
+                lineWidth: 8,
+                caption: "SCORE"
+            )
 
-                if isActive {
-                    Circle()
-                        .trim(from: 0, to: progress)
-                        .stroke(
-                            AngularGradient(
-                                colors: [scoreColor.opacity(0.4), scoreColor],
-                                center: .center,
-                                startAngle: .degrees(0),
-                                endAngle: .degrees(360 * progress)
-                            ),
-                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                        )
-                        .frame(width: 100, height: 100)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.8), value: progress)
-
-                    VStack(spacing: 0) {
-                        Text("GAIT SCORE")
-                            .font(.system(size: 8, weight: .semibold, design: .rounded))
-                            .tracking(1.2)
-                            .foregroundColor(.gray)
-                        Text("\(gaitScore)")
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .contentTransition(.numericText())
-                    }
-                } else {
-                    Circle()
-                        .fill(accent.opacity(0.1))
-                        .frame(width: 88, height: 88)
-                    VStack(spacing: 2) {
-                        Image(systemName: "figure.walk")
-                            .font(.system(size: 22, weight: .medium))
-                            .foregroundColor(accent)
-                        Text("Ready")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                    }
-                }
-            }
-
-            Text(scoreLabel)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundColor(scoreColor)
-
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    isActive.toggle()
-                }
-                if isActive {
-                    gaitTrackingManager.startTracking()
-                    engine.startMonitoring()
-                } else {
-                    gaitTrackingManager.stopTracking()
-                    engine.stopMonitoring(reason: "user")
-                }
-            }) {
-                Text(isActive ? "STOP" : "START")
+            Button(action: { engine.isMonitoring ? onStop() : onStart() }) {
+                Text(engine.isMonitoring ? "STOP" : "START")
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .tracking(1)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 6)
             }
             .buttonStyle(.borderedProminent)
-            .tint(isActive ? Color(red: 1.0, green: 0.42, blue: 0.38).opacity(0.85) : accent)
+            .tint(engine.isMonitoring ? GGTheme.danger.opacity(0.9) : GGTheme.accent)
 
             PageDots(current: 0, total: 3)
-                .padding(.top, 2)
         }
         .padding(.horizontal, 8)
         .onChange(of: gaitScore) { _, newScore in
-            if isActive {
-                WatchConnectivityManager.shared.updateCachedGaitScore(newScore)
-            }
+            if engine.isMonitoring { WatchConnectivityManager.shared.updateCachedGaitScore(newScore) }
         }
-        .onChange(of: isActive) { _, active in
-            if active {
-                WatchConnectivityManager.shared.updateCachedGaitScore(gaitScore)
-            }
-        }
-        .onChange(of: engine.monitoringStoppedDueToBattery) { _, stopped in
-            if stopped && isActive {
-                withAnimation { isActive = false }
-                gaitTrackingManager.stopTracking()
-            }
+        .onChange(of: engine.isMonitoring) { _, active in
+            if active { WatchConnectivityManager.shared.updateCachedGaitScore(gaitScore) }
         }
     }
 }
@@ -252,42 +158,31 @@ struct ScorePage: View {
 
 struct MetricsPage: View {
     @ObservedObject var engine: MotionDetector
-    let isActive: Bool
-
-    private let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
 
     var body: some View {
         VStack(spacing: 12) {
             Text("METRICS")
                 .font(.system(size: 10, weight: .bold, design: .rounded))
                 .tracking(1.5)
-                .foregroundColor(.gray)
+                .foregroundColor(GGTheme.text2)
 
             Spacer()
 
-            if isActive {
+            if engine.isMonitoring {
                 VStack(spacing: 20) {
-                    MetricBlock(
-                        value: engine.currentCadence.map { String(format: "%.0f", $0) } ?? "--",
-                        label: "CADENCE",
-                        unit: "spm",
-                        color: accent
-                    )
-                    MetricBlock(
-                        value: engine.currentDistance.map { String(format: "%.2f", $0) } ?? "--",
-                        label: "STRIDE",
-                        unit: "m",
-                        color: .cyan
-                    )
+                    MetricBlock(value: engine.currentCadence.map { String(format: "%.0f", $0) } ?? "--",
+                                label: "CADENCE", unit: "spm", color: GGTheme.accent)
+                    MetricBlock(value: engine.currentDistance.map { String(format: "%.2f", $0) } ?? "--",
+                                label: "STRIDE", unit: "m", color: GGTheme.accentSecondary)
                 }
             } else {
                 VStack(spacing: 8) {
                     Image(systemName: "figure.walk")
                         .font(.system(size: 28))
-                        .foregroundColor(accent.opacity(0.35))
-                    Text("Ready — start to see metrics")
+                        .foregroundColor(GGTheme.accent.opacity(0.4))
+                    Text("Start to see live metrics")
                         .font(.system(size: 11))
-                        .foregroundColor(.gray)
+                        .foregroundColor(GGTheme.text2)
                         .multilineTextAlignment(.center)
                 }
             }
@@ -313,7 +208,7 @@ struct MetricBlock: View {
                     .foregroundColor(.white)
                 Text(unit)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.gray)
+                    .foregroundColor(GGTheme.text2)
             }
             Text(label)
                 .font(.system(size: 10, weight: .bold))
@@ -323,55 +218,30 @@ struct MetricBlock: View {
     }
 }
 
-// MARK: - Page 3: Stats + Calibrate
+// MARK: - Page 3: Today + Calibrate
 
 struct StatsPage: View {
     @ObservedObject var engine: MotionDetector
-    @Binding var isActive: Bool
-
-    private let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
 
     var body: some View {
         VStack(spacing: 10) {
             Text("TODAY")
                 .font(.system(size: 10, weight: .bold, design: .rounded))
                 .tracking(1.5)
-                .foregroundColor(.gray)
+                .foregroundColor(GGTheme.text2)
 
             Spacer()
 
             HStack(spacing: 0) {
-                VStack(spacing: 4) {
-                    Text("\(engine.currentSteps)")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Text("STEPS")
-                        .font(.system(size: 9, weight: .bold))
-                        .tracking(1)
-                        .foregroundColor(.gray)
-                }
-                .frame(maxWidth: .infinity)
-
-                RoundedRectangle(cornerRadius: 1)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 1, height: 30)
-
-                VStack(spacing: 4) {
-                    Text("\(engine.todaysTotal)")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Text("ASSISTS")
-                        .font(.system(size: 9, weight: .bold))
-                        .tracking(1)
-                        .foregroundColor(.gray)
-                }
-                .frame(maxWidth: .infinity)
+                stat("\(engine.currentSteps)", "STEPS")
+                RoundedRectangle(cornerRadius: 1).fill(Color.white.opacity(0.12)).frame(width: 1, height: 30)
+                stat("\(engine.todaysTotal)", "CUES", color: GGTheme.cue)
             }
 
-            VStack(spacing: 4) {
-                Text("Last Assist")
+            VStack(spacing: 2) {
+                Text("Last cue")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(.gray)
+                    .foregroundColor(GGTheme.text2)
                 Text(engine.lastAssistTimeText)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(.white)
@@ -380,32 +250,45 @@ struct StatsPage: View {
             if engine.hasCalibrationData() {
                 Label("Calibrated", systemImage: "checkmark.circle.fill")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(accent)
+                    .foregroundColor(GGTheme.good)
             } else if engine.isCalibrationUnstable() {
-                Label("Calibration Failed", systemImage: "xmark.circle.fill")
+                Label("Calibration failed", systemImage: "xmark.circle.fill")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.38))
+                    .foregroundColor(GGTheme.danger)
             }
 
             if engine.monitoringStoppedDueToBattery {
-                Label("Low Battery", systemImage: "battery.25")
+                Label("Low battery", systemImage: "battery.25")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(red: 1.0, green: 0.42, blue: 0.38))
+                    .foregroundColor(GGTheme.danger)
             }
 
-            if !isActive {
+            if !engine.isMonitoring {
                 Button(action: { engine.startCalibration() }) {
                     Label("Calibrate", systemImage: "tuningfork")
                         .font(.system(size: 12, weight: .semibold))
                 }
                 .buttonStyle(.bordered)
-                .tint(accent)
+                .tint(GGTheme.accent)
             }
 
             Spacer()
             PageDots(current: 2, total: 3)
         }
         .padding(.horizontal, 12)
+    }
+
+    private func stat(_ value: String, _ label: String, color: Color = .white) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(color)
+            Text(label)
+                .font(.system(size: 9, weight: .bold))
+                .tracking(1)
+                .foregroundColor(GGTheme.text2)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -425,23 +308,23 @@ struct CalibrationView: View {
 
             ZStack {
                 Circle()
-                    .fill(Color.orange.opacity(0.2))
+                    .fill(GGTheme.cue.opacity(0.2))
                     .frame(width: 44, height: 44)
                     .scaleEffect(pulseScale)
                     .animation(.spring(response: 0.2, dampingFraction: 0.5), value: engine.currentMagnitude)
 
                 Image(systemName: "figure.walk")
                     .font(.system(size: 24))
-                    .foregroundColor(.orange)
+                    .foregroundColor(GGTheme.cue)
             }
 
             Text("\(engine.calibrationTimeRemaining)")
                 .font(.system(size: 40, weight: .bold, design: .rounded))
-                .foregroundColor(.orange)
+                .foregroundColor(GGTheme.cue)
                 .contentTransition(.numericText())
 
             ProgressView(value: engine.calibrationProgress)
-                .tint(.orange)
+                .tint(GGTheme.cue)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 4)
 
@@ -457,7 +340,7 @@ struct CalibrationView: View {
             }
             .frame(height: 36)
         }
-        .containerBackground(Color.orange.opacity(0.15).gradient, for: .navigation)
+        .containerBackground(GGTheme.cue.opacity(0.15).gradient, for: .navigation)
     }
 }
 

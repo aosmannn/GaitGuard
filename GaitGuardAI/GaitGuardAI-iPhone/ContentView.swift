@@ -1,22 +1,6 @@
 import SwiftUI
 import WatchConnectivity
 
-enum GGTheme {
-    static let bg = Color(red: 0.04, green: 0.05, blue: 0.09)
-    static let card = Color(red: 0.08, green: 0.09, blue: 0.14)
-    static let cardBorder = Color.white.opacity(0.06)
-    /// Matches Watch brand teal
-    static let accent = Color(red: 0.18, green: 0.87, blue: 0.72)
-    static let accentDim = accent.opacity(0.15)
-    static let text1 = Color.white
-    static let text2 = Color(white: 0.55)
-    static let text3 = Color(white: 0.35)
-    static let danger = Color(red: 1.0, green: 0.42, blue: 0.38)
-    static let warn = Color.orange
-    static let good = Color.green
-    static let radius: CGFloat = 20
-}
-
 struct ContentView: View {
     @EnvironmentObject var cm: WatchConnectivityManager
     @State private var tab = 0
@@ -48,6 +32,7 @@ struct HomeTab: View {
     @State private var timer: Timer?
     @State private var now = Date()
     @State private var remoteActionError = false
+    @State private var pendingCommand = false
 
     private var todayEvents: [AssistEvent] {
         cm.assistEvents.filter { Calendar.current.isDateInToday($0.timestamp) }
@@ -60,94 +45,65 @@ struct HomeTab: View {
     private var gaitScore: Int {
         if let watchScore = cm.latestGaitScore { return watchScore }
         guard cm.isWatchMonitoring else { return 0 }
-        let assists = todayEvents.count
-        let steps = cm.latestStepData?.stepCount ?? 0
-        return GaitScoreCalculator.score(todaysAssists: assists, steps: steps)
+        return GaitScoreCalculator.score(todaysAssists: todayEvents.count, steps: cm.latestStepData?.stepCount ?? 0)
     }
 
     private var scoreLabel: String {
         GaitScoreCalculator.label(for: gaitScore, isMonitoring: cm.isWatchMonitoring)
     }
 
-    private var scoreColor: Color {
-        if !cm.isWatchMonitoring { return GGTheme.accent.opacity(0.7) }
-        if gaitScore >= 85 { return GGTheme.accent }
-        if gaitScore >= 65 { return .green }
-        if gaitScore >= 40 { return .orange }
-        return GGTheme.danger
+    private func flashError() {
+        withAnimation { remoteActionError = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            withAnimation { remoteActionError = false }
+        }
+    }
+
+    private func toggleMonitoring() {
+        let ok = cm.isWatchMonitoring ? cm.requestStopMonitoring() : cm.requestStartMonitoring()
+        guard ok else { flashError(); return }
+        pendingCommand = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        // Watch confirms through the shared snapshot; never leave the spinner up if it doesn't.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { pendingCommand = false }
     }
 
     var body: some View {
         NavigationStack {
             ZStack {
                 GGTheme.bg.ignoresSafeArea()
+                RadialGradient(colors: [GGTheme.accent.opacity(cm.isWatchMonitoring ? 0.22 : 0.10), .clear],
+                               center: .top, startRadius: 0, endRadius: 420)
+                    .ignoresSafeArea()
+                    .animation(.easeInOut(duration: 0.6), value: cm.isWatchMonitoring)
 
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 20) {
-
-                        if cm.isWatchMonitoring {
-                            GaitScoreRing(
-                                score: gaitScore,
-                                label: scoreLabel,
-                                color: scoreColor,
-                                isLive: true
-                            )
-                            .padding(.top, 8)
-                            .padding(.bottom, 8)
-                        } else {
-                            ReadyStateHero(
-                                stopReason: cm.monitoringStopReason,
-                                isReachable: cm.isWatchReachable
-                            )
-                            .padding(.top, 8)
-                        }
-
-                        WatchStatusCard(cm: cm, now: now)
-
-                        RemoteMonitorControls(
-                            isMonitoring: cm.isWatchMonitoring,
-                            isReachable: cm.isWatchReachable,
-                            onStart: {
-                                if !cm.requestStartMonitoring() {
-                                    withAnimation { remoteActionError = true }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        withAnimation { remoteActionError = false }
-                                    }
-                                }
-                            },
-                            onStop: {
-                                if !cm.requestStopMonitoring() {
-                                    withAnimation { remoteActionError = true }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        withAnimation { remoteActionError = false }
-                                    }
-                                }
-                            }
+                    VStack(spacing: 18) {
+                        HeroCard(
+                            cm: cm,
+                            now: now,
+                            score: cm.isWatchMonitoring ? gaitScore : nil,
+                            label: scoreLabel,
+                            pending: pendingCommand,
+                            onToggle: toggleMonitoring
                         )
 
                         if remoteActionError {
                             HStack(spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(GGTheme.warn)
+                                Image(systemName: "exclamationmark.triangle.fill").foregroundColor(GGTheme.warn)
                                 Text("Watch not reachable — open GaitGuard on your Watch.")
-                                    .font(.system(size: 13))
-                                    .foregroundColor(GGTheme.text2)
+                                    .font(.system(size: 13)).foregroundColor(GGTheme.text2)
                             }
                             .padding(14)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(GGTheme.warn.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .background(GGTheme.warn.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
                         }
 
                         if cm.isWatchMonitoring {
                             LiveSessionCard(cm: cm, now: now)
                         }
 
-                        TodaySummaryCard(
-                            today: todayEvents,
-                            yesterday: yesterdayEvents,
-                            isMonitoring: cm.isWatchMonitoring
-                        )
+                        TodaySummaryCard(today: todayEvents, yesterday: yesterdayEvents, isMonitoring: cm.isWatchMonitoring)
 
                         if !todayEvents.isEmpty {
                             RecentFreezeCard(events: todayEvents)
@@ -165,267 +121,109 @@ struct HomeTab: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .onAppear { startPolling() }
             .onDisappear { timer?.invalidate(); timer = nil }
+            .onChange(of: cm.isWatchMonitoring) { _, _ in pendingCommand = false }
         }
     }
 
     private func startPolling() {
         cm.updateConnectionStatus()
+        cm.requestSync()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
             cm.updateConnectionStatus()
-            _ = cm.wcSession?.isReachable
             now = Date()
         }
     }
 }
 
-// MARK: - Ready State (idle)
+// MARK: - Hero (score, connection, primary control)
 
-struct ReadyStateHero: View {
-    let stopReason: String?
-    let isReachable: Bool
+struct HeroCard: View {
+    @ObservedObject var cm: WatchConnectivityManager
+    let now: Date
+    let score: Int?
+    let label: String
+    let pending: Bool
+    let onToggle: () -> Void
 
-    private var reasonText: String? {
-        switch stopReason {
-        case "battery": return "Monitoring stopped — low battery"
-        case "session_expired": return "Monitoring stopped — session ended"
-        case "remote": return "Monitoring stopped from iPhone"
+    private var stopReasonText: String? {
+        switch cm.monitoringStopReason {
+        case "battery": return "Stopped — low battery. Charge your Watch, then start again."
+        case "session_expired": return "Session ended. Start again when you're ready."
+        case "remote": return "Stopped from iPhone."
         default: return nil
         }
     }
 
-    var body: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .stroke(GGTheme.accent.opacity(0.2), lineWidth: 6)
-                    .frame(width: 120, height: 120)
-                Circle()
-                    .fill(GGTheme.accent.opacity(0.08))
-                    .frame(width: 100, height: 100)
-                Image(systemName: "figure.walk")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundColor(GGTheme.accent)
-            }
-
-            Text("Ready")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(GGTheme.text1)
-
-            Text(isReachable
-                 ? "Start monitoring from here or on your Watch"
-                 : "Connect your Watch to begin cueing support")
-                .font(.system(size: 14))
-                .foregroundColor(GGTheme.text2)
-                .multilineTextAlignment(.center)
-
-            if let reasonText {
-                Text(reasonText)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(GGTheme.warn)
-                    .padding(.top, 2)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Ready. \(reasonText ?? "")")
-    }
-}
-
-// MARK: - Remote Monitor Controls
-
-struct RemoteMonitorControls: View {
-    let isMonitoring: Bool
-    let isReachable: Bool
-    let onStart: () -> Void
-    let onStop: () -> Void
-
-    var body: some View {
-        VStack(spacing: 10) {
-            if isMonitoring {
-                Button(action: onStop) {
-                    Label("Stop Monitoring", systemImage: "stop.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(GGTheme.danger.opacity(0.85))
-                .disabled(!isReachable)
-            } else {
-                Button(action: onStart) {
-                    Label("Start Monitoring", systemImage: "play.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(GGTheme.accent)
-                .disabled(!isReachable)
-            }
-
-            if !isReachable {
-                Text("Requires a reachable Apple Watch")
-                    .font(.system(size: 12))
-                    .foregroundColor(GGTheme.text3)
-            }
-        }
-    }
-}
-
-// MARK: - Gait Score Ring
-
-struct GaitScoreRing: View {
-    let score: Int?
-    let label: String
-    let color: Color
-    var isLive: Bool = false
-
-    private var progress: Double {
-        guard let s = score else { return 0 }
-        return Double(s) / 100.0
+    private var connection: (text: String, color: Color, icon: String) {
+        if cm.isWatchReachable { return ("Watch connected", GGTheme.good, "applewatch.radiowaves.left.and.right") }
+        if cm.isWatchConnected { return ("Open Watch app", GGTheme.warn, "applewatch") }
+        return ("No Watch", GGTheme.danger, "applewatch.slash")
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .stroke(GGTheme.text3.opacity(0.2), lineWidth: 10)
-                    .frame(width: 180, height: 180)
-
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(
-                        AngularGradient(
-                            colors: [color.opacity(0.5), color],
-                            center: .center,
-                            startAngle: .degrees(0),
-                            endAngle: .degrees(360 * progress)
-                        ),
-                        style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                    )
-                    .frame(width: 180, height: 180)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 1.0), value: progress)
-
-                VStack(spacing: 2) {
-                    Text(isLive ? "GAIT SCORE" : "STATUS")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .tracking(1.5)
-                        .foregroundColor(GGTheme.text2)
-
-                    if let s = score {
-                        Text("\(s)")
-                            .font(.system(size: 64, weight: .bold, design: .rounded))
-                            .foregroundColor(GGTheme.text1)
-                            .contentTransition(.numericText())
-                            .accessibilityLabel("Gait score \(s)")
-                    } else {
-                        Text("Ready")
-                            .font(.system(size: 36, weight: .bold, design: .rounded))
-                            .foregroundColor(GGTheme.accent.opacity(0.8))
-                    }
-                }
-            }
-
-            Text(label)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundColor(color)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-// MARK: - Watch Status Card
-
-struct WatchStatusCard: View {
-    @ObservedObject var cm: WatchConnectivityManager
-    let now: Date
-
-    private var statusIcon: String {
-        if cm.isWatchMonitoring { return "applewatch.radiowaves.left.and.right" }
-        if cm.isWatchReachable { return "applewatch.watchface" }
-        if cm.isWatchConnected { return "applewatch" }
-        return "applewatch.slash"
-    }
-
-    private var statusColor: Color {
-        if cm.isWatchMonitoring { return GGTheme.accent }
-        if cm.isWatchReachable { return .green }
-        if cm.isWatchConnected { return .orange }
-        return GGTheme.danger
-    }
-
-    private var statusTitle: String {
-        if cm.isWatchMonitoring { return "Cueing Active" }
-        if let reason = cm.monitoringStopReason {
-            switch reason {
-            case "battery": return "Stopped — Low Battery"
-            case "session_expired": return "Stopped — Session Ended"
-            default: break
-            }
-        }
-        if cm.isWatchReachable { return "Watch Connected" }
-        if cm.isWatchConnected { return "Watch Paired" }
-        return "Watch Not Connected"
-    }
-
-    private var statusSubtitle: String {
-        if cm.isWatchMonitoring { return "Real-time gait support on Watch" }
-        if cm.monitoringStopReason == "battery" {
-            return "Charge your Watch, then start again"
-        }
-        if cm.monitoringStopReason == "session_expired" {
-            return "Watch session ended — start again when ready"
-        }
-        if cm.isWatchReachable { return "Ready to start monitoring" }
-        if cm.isWatchConnected { return "Open the GaitGuard Watch app" }
-        return "Pair your Apple Watch to get started"
-    }
-
-    var body: some View {
-        HStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(statusColor.opacity(0.12))
-                    .frame(width: 52, height: 52)
-                Image(systemName: statusIcon)
-                    .font(.system(size: 22))
-                    .foregroundColor(statusColor)
-                    .symbolEffect(.pulse, isActive: cm.isWatchMonitoring)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(statusTitle)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(GGTheme.text1)
-                Text(statusSubtitle)
-                    .font(.system(size: 13))
-                    .foregroundColor(GGTheme.text2)
-
-                if let hb = cm.lastHeartbeatTime, cm.isWatchReachable {
+        VStack(spacing: 20) {
+            HStack {
+                Label(connection.text, systemImage: connection.icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(connection.color)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(connection.color.opacity(0.12), in: Capsule())
+                Spacer()
+                if let hb = cm.lastHeartbeatTime, cm.isWatchMonitoring {
                     let ago = now.timeIntervalSince(hb)
                     HStack(spacing: 5) {
-                        Circle().fill(GGTheme.accent).frame(width: 5, height: 5)
-                        Text(ago < 10 ? "Just now" : "\(Int(ago))s ago")
-                            .font(.system(size: 11))
-                            .foregroundColor(GGTheme.text3)
+                        Circle().fill(ago < 12 ? GGTheme.good : GGTheme.warn).frame(width: 6, height: 6)
+                        Text(ago < 12 ? "Live" : "\(Int(ago))s ago")
+                            .font(.system(size: 11, weight: .medium)).foregroundColor(GGTheme.text2)
                     }
-                    .padding(.top, 1)
                 }
             }
 
-            Spacer()
+            GGScoreRing(
+                score: score,
+                label: cm.isWatchMonitoring ? label : "Cueing paused",
+                color: GGTheme.scoreColor(score ?? 0, monitoring: cm.isWatchMonitoring),
+                size: 200,
+                lineWidth: 14
+            )
+
+            if let stopReasonText, !cm.isWatchMonitoring {
+                Text(stopReasonText)
+                    .font(.system(size: 12, weight: .medium)).foregroundColor(GGTheme.warn)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: onToggle) {
+                HStack(spacing: 8) {
+                    if pending { ProgressView().tint(.white) }
+                    else { Image(systemName: cm.isWatchMonitoring ? "stop.fill" : "play.fill") }
+                    Text(pending ? "Waiting for Watch…" : cm.isWatchMonitoring ? "Stop Monitoring" : "Start Monitoring")
+                }
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity).padding(.vertical, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(cm.isWatchMonitoring ? AnyShapeStyle(GGTheme.danger.opacity(0.85))
+                                                   : AnyShapeStyle(GGTheme.brandGradient))
+                )
+                .opacity(cm.isWatchReachable || cm.isWatchMonitoring ? 1 : 0.45)
+            }
+            .disabled(pending)
+            .accessibilityHint("Starts or stops gait monitoring on your Apple Watch")
+
+            if !cm.isWatchReachable && !cm.isWatchMonitoring {
+                Text("Connect your Watch to begin cueing support")
+                    .font(.system(size: 12)).foregroundColor(GGTheme.text3)
+            }
         }
-        .padding(18)
-        .background(GGTheme.card)
-        .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
+        .padding(20)
+        .background(GGTheme.card, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: GGTheme.radius)
-                .stroke(statusColor.opacity(0.2), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .stroke(LinearGradient(colors: [GGTheme.accent.opacity(0.4), .white.opacity(0.04)],
+                                       startPoint: .top, endPoint: .bottom), lineWidth: 1)
         )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(statusTitle). \(statusSubtitle)")
     }
 }
 
@@ -593,7 +391,7 @@ struct TodaySummaryCard: View {
                 SummaryMetric(
                     value: "\(today.filter { $0.type == "turn" }.count)",
                     label: "Turn",
-                    color: .orange
+                    color: GGTheme.accentSecondary
                 )
 
                 RoundedRectangle(cornerRadius: 1)
@@ -702,12 +500,12 @@ struct MiniEventRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(event.type == "start" ? GGTheme.accent.opacity(0.15) : Color.orange.opacity(0.15))
+                .fill(GGTheme.assistColor(event.type).opacity(0.15))
                 .frame(width: 32, height: 32)
                 .overlay(
                     Image(systemName: event.type == "start" ? "figure.walk" : "arrow.turn.up.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(event.type == "start" ? GGTheme.accent : .orange)
+                        .foregroundColor(GGTheme.assistColor(event.type))
                 )
 
             VStack(alignment: .leading, spacing: 2) {
@@ -753,6 +551,7 @@ struct SetupGuideCard: View {
             StepRow(number: 4, text: "Start monitoring from Home or your Watch")
         }
         .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(GGTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: GGTheme.radius))
         .overlay(
@@ -899,11 +698,11 @@ struct HistoryRow: View {
         HStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(event.type == "start" ? GGTheme.accent.opacity(0.12) : Color.orange.opacity(0.12))
+                    .fill(GGTheme.assistColor(event.type).opacity(0.12))
                     .frame(width: 42, height: 42)
                 Image(systemName: event.type == "start" ? "figure.walk" : "arrow.turn.up.right")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(event.type == "start" ? GGTheme.accent : .orange)
+                    .foregroundColor(GGTheme.assistColor(event.type))
             }
 
             VStack(alignment: .leading, spacing: 3) {

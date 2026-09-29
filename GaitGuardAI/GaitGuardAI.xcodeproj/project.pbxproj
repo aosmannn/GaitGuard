@@ -182,6 +182,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				77C0A001B3F14A2C9D5D0001 /* GaitGuardAI-iPhone */,
+				77C0A002B3F14A2C9D5D0002 /* Shared */,
 			);
 			name = "GaitGuardAI-iPhone";
 			packageProductDependencies = (
@@ -269,7 +270,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				77C0A021B3F14A2C9D5D0021 /* Shared/WatchConnectivityManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
