@@ -42,7 +42,12 @@ Or from the repo root with a linked project whose **Root Directory** is `website
 npx vercel --prod
 ```
 
-Set `NEXT_PUBLIC_SITE_URL` to the production URL for correct Open Graph absolute links.
+Production: [https://gaitguardai.vercel.app](https://gaitguardai.vercel.app)  
+Project: `pogamis-projects/gaitguardai` (linked from this directory).
+
+Set `NEXT_PUBLIC_SITE_URL=https://gaitguardai.vercel.app` for correct Open Graph absolute links.
+
+If the site shows a Vercel login wall, disable **Deployment Protection** for Production in the Vercel project settings.
 
 ## Notes
 
