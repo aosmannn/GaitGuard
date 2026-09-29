@@ -368,6 +368,7 @@ class MotionDetector: ObservableObject {
         
         if checkBatteryLevel() {
             monitoringStoppedDueToBattery = true
+            WatchConnectivityManager.shared.sendMonitoringState(isMonitoring: false, reason: "battery")
             WKInterfaceDevice.current().play(.failure)
             return
         }
@@ -422,8 +423,8 @@ class MotionDetector: ObservableObject {
             // Periodic battery check (every 60 seconds worth of samples at 50Hz = 3000 samples)
             if let self = self, self.magnitudeHistory.count % 3000 == 0 {
                 if self.checkBatteryLevel() {
-                    self.stopMonitoring()
                     self.monitoringStoppedDueToBattery = true
+                    self.stopMonitoring(reason: "battery")
                     WKInterfaceDevice.current().play(.failure)
                     return
                 }
@@ -480,7 +481,7 @@ class MotionDetector: ObservableObject {
         }
     }
     
-    func stopMonitoring() {
+    func stopMonitoring(reason: String = "user") {
         motionManager.stopAccelerometerUpdates()
         motionManager.stopGyroUpdates()
         freezeStartTime = nil
@@ -488,7 +489,7 @@ class MotionDetector: ObservableObject {
         consecutiveFreezes = 0
         
         isMonitoring = false
-        WatchConnectivityManager.shared.sendMonitoringState(isMonitoring: false)
+        WatchConnectivityManager.shared.sendMonitoringState(isMonitoring: false, reason: reason)
         WatchConnectivityManager.shared.stopHeartbeat()
         
         if CMPedometer.isStepCountingAvailable() {

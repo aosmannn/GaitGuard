@@ -13,6 +13,7 @@ final class GaitTrackingManager: NSObject, ObservableObject {
     private var workoutSession: HKWorkoutSession?
     private var healthStore: HKHealthStore?
     private let motionDetector: MotionDetector
+    private var intentionalStop = false
     
     // Workout configuration
     private let workoutConfiguration = HKWorkoutConfiguration()
@@ -50,6 +51,7 @@ final class GaitTrackingManager: NSObject, ObservableObject {
     
     func startTracking() {
         guard !isTracking else { return }
+        intentionalStop = false
         guard let healthStore = healthStore else {
             startTrackingWithoutWorkout()
             return
@@ -87,6 +89,7 @@ final class GaitTrackingManager: NSObject, ObservableObject {
     func stopTracking() {
         guard isTracking else { return }
         
+        intentionalStop = true
         workoutSession?.end()
         workoutSession = nil
         isTracking = false
@@ -114,6 +117,9 @@ extension GaitTrackingManager: HKWorkoutSessionDelegate {
                 print("[GaitTrackingManager] Workout session ended")
                 #endif
                 self?.isTracking = false
+                if self?.intentionalStop != true {
+                    NotificationCenter.default.post(name: NSNotification.Name("MonitoringSessionExpired"), object: nil)
+                }
             case .paused:
                 #if DEBUG
                 print("[GaitTrackingManager] Workout session paused")
@@ -127,6 +133,9 @@ extension GaitTrackingManager: HKWorkoutSessionDelegate {
                 print("[GaitTrackingManager] Workout session stopped")
                 #endif
                 self?.isTracking = false
+                if self?.intentionalStop != true {
+                    NotificationCenter.default.post(name: NSNotification.Name("MonitoringSessionExpired"), object: nil)
+                }
             case .notStarted:
                 #if DEBUG
                 print("[GaitTrackingManager] Workout session not started")

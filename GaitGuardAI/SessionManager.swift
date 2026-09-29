@@ -29,9 +29,9 @@ final class SessionManager: NSObject, ObservableObject, WKExtendedRuntimeSession
     func extendedRuntimeSessionWillExpire(_ session: WKExtendedRuntimeSession) {
         isSessionActive = false
         // Session expiring often indicates low battery or system resource constraints
-        // Trigger haptic alert
         #if os(watchOS)
         WKInterfaceDevice.current().play(.notification)
+        NotificationCenter.default.post(name: NSNotification.Name("MonitoringSessionExpired"), object: nil)
         #endif
     }
 
@@ -39,5 +39,13 @@ final class SessionManager: NSObject, ObservableObject, WKExtendedRuntimeSession
                                 didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason,
                                 error: Error?) {
         isSessionActive = false
+        #if os(watchOS)
+        switch reason {
+        case .expired, .error:
+            NotificationCenter.default.post(name: NSNotification.Name("MonitoringSessionExpired"), object: nil)
+        default:
+            break
+        }
+        #endif
     }
 }
