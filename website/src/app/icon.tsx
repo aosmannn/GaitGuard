@@ -13,19 +13,15 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#05080f",
-          borderRadius: 8,
+          background: "#2edeb8",
+          borderRadius: 999,
+          color: "#ffffff",
+          fontSize: 18,
+          fontWeight: 700,
+          fontFamily: "sans-serif",
         }}
       >
-        <div
-          style={{
-            width: 18,
-            height: 18,
-            borderRadius: 999,
-            border: "3px solid #2edeb8",
-            display: "flex",
-          }}
-        />
+        G
       </div>
     ),
     { ...size },
