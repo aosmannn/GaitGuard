@@ -13,15 +13,18 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #7c8cff, #b58cff)",
-          borderRadius: 999,
-          color: "#0a0b14",
-          fontSize: 18,
-          fontWeight: 700,
-          fontFamily: "sans-serif",
+          background: "linear-gradient(135deg, #4f55e8, #9b6bff)",
+          borderRadius: 9,
         }}
       >
-        G
+        <div
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 999,
+            border: "3px solid #ffffff",
+          }}
+        />
       </div>
     ),
     { ...size },
