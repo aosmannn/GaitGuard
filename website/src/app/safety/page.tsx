@@ -63,7 +63,7 @@ export default function SafetyPage() {
             </Reveal>
             <ul className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {privacy.map((p, i) => (
-                <Reveal as="li" key={p.title} delay={(i % 3) * 80} className="rounded-3xl border border-white/10 bg-white/[0.04] p-7">
+                <Reveal as="li" key={p.title} delay={(i % 3) * 80} className="rounded-2xl border border-white/10 bg-white/[0.04] p-7">
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-soft/15 text-indigo-soft">
                     <Icon d={p.icon} />
                   </span>

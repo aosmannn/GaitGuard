@@ -86,7 +86,7 @@ export default function ResearchPage() {
             </Reveal>
           ))}
 
-          <Reveal className="rounded-[32px] border border-cue/30 bg-[#fff8ea] p-7 sm:p-10">
+          <Reveal className="rounded-[22px] border border-cue/30 bg-[#fff8ea] p-7 sm:p-10">
             <p className="eyebrow !text-[#a8620a]">05 · The limits</p>
             <h2 className="mt-3 text-[clamp(1.5rem,2.6vw,2rem)] font-semibold tracking-[-0.025em]">What we don&apos;t know yet</h2>
             <ul className="mt-5 grid gap-4 text-[1rem] leading-relaxed text-ink-2 md:grid-cols-2">
