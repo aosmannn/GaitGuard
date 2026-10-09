@@ -3,29 +3,29 @@
 :root {
   color-scheme: light;
 
-  --paper: #f3f1ea;
-  --paper-2: #e9e6dc;
-  --card: #faf9f5;
-  --ink: #101119;
-  --ink-2: #2b2d3b;
-  --mute: #585a68;
-  --mute-2: #8a8b96;
-  --line: #d9d5c8;
+  --paper: #ffffff;
+  --paper-2: #f5f5f7;
+  --card: #ffffff;
+  --ink: #1d1d1f;
+  --ink-2: #3a3a3f;
+  --mute: #5a5a60;
+  --mute-2: #6b6b71;
+  --line: #e4e4e8;
 
-  --night: #0c0d13;
-  --night-2: #15161f;
+  --night: #1d1d1f;
+  --night-2: #2a2a2e;
 
-  /* Brand shared with the iOS/watchOS apps */
   --indigo: #4f55e8;
   --indigo-soft: #7c8cff;
-  --violet: #9b6bff;
-  --cue: #f5a524;
+  --violet: #8b5cf6;
+  --cue: #f59e0b;
   --cue-soft: #ffb547;
-  --good: #16a36a;
+  --good: #1f9d5b;
+  --danger: #e5484d;
 
-  --wrap: 1180px;
-  --pad: clamp(20px, 5vw, 48px);
-  --section: clamp(96px, 12vw, 168px);
+  --wrap: 1120px;
+  --pad: clamp(20px, 5vw, 40px);
+  --section: clamp(80px, 10vw, 128px);
 }
 
 @theme inline {
@@ -45,9 +45,8 @@
   --color-cue: var(--cue);
   --color-cue-soft: var(--cue-soft);
   --color-good: var(--good);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist);
-  --font-serif: var(--font-serif);
-  --font-mono: var(--font-mono);
 }
 
 * { box-sizing: border-box; }
@@ -64,7 +63,7 @@ body {
   margin: 0;
   color: var(--ink);
   background: var(--paper);
-  font-family: var(--font-geist), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-geist), system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: clip;
@@ -72,12 +71,15 @@ body {
 
 ::selection { background: rgba(79, 85, 232, 0.2); }
 
-a { color: inherit; text-decoration: none; }
+/* Base layer so utility classes (text-white, text-ink…) can still override link colour. */
+@layer base {
+  a { color: inherit; text-decoration: none; }
+}
 
 :focus-visible {
   outline: 3px solid var(--indigo);
   outline-offset: 3px;
-  border-radius: 10px;
+  border-radius: 8px;
 }
 
 .wrap {
@@ -90,107 +92,52 @@ a { color: inherit; text-decoration: none; }
 .section { padding-top: var(--section); }
 
 .eyebrow {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   color: var(--indigo);
 }
 
-.mono {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-feature-settings: "zero" 1;
-}
-.label {
-  font-family: var(--font-mono), ui-monospace, monospace;
-  font-size: 0.68rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--mute-2);
-}
-
-/* Lab-notebook paper: faint dot grid */
-.paper-grid {
-  background-image: radial-gradient(rgba(16, 17, 25, 0.13) 1px, transparent 1px);
-  background-size: 22px 22px;
-  mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
-  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
-}
-
-/* Figure frame with crop-mark corners */
-.fig { position: relative; }
-.fig::before, .fig::after, .fig > .tick-b::before, .fig > .tick-b::after {
-  content: "";
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid var(--ink);
-  opacity: 0.55;
-}
-.fig::before { top: -7px; left: -7px; border-right: 0; border-bottom: 0; }
-.fig::after { top: -7px; right: -7px; border-left: 0; border-bottom: 0; }
-.fig > .tick-b::before { bottom: -7px; left: -7px; border-right: 0; border-top: 0; }
-.fig > .tick-b::after { bottom: -7px; right: -7px; border-left: 0; border-top: 0; }
-
 .display {
-  font-weight: 600;
-  letter-spacing: -0.045em;
-  line-height: 0.98;
-  text-wrap: balance;
-}
-
-.h2 {
-  font-size: clamp(2rem, 4.4vw, 3.6rem);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: -0.04em;
   line-height: 1.02;
   text-wrap: balance;
 }
 
-.serif {
-  font-family: var(--font-serif), Georgia, serif;
-  font-weight: 400;
-  font-style: italic;
-  letter-spacing: -0.02em;
+.h2 {
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+  text-wrap: balance;
 }
 
-.brand-grad {
-  background: linear-gradient(120deg, var(--indigo) 0%, var(--violet) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
+/* Legacy accents used by inner pages: kept plain and professional. */
+.serif { font-weight: inherit; font-style: normal; }
+.brand-grad { color: var(--indigo); }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
-  min-height: 52px;
-  padding: 0 1.5rem;
-  border-radius: 12px;
+  gap: 0.5rem;
+  min-height: 48px;
+  padding: 0 1.4rem;
+  border-radius: 999px;
   font-weight: 600;
   font-size: 0.95rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  line-height: 1;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
-.btn-ink {
-  background: var(--ink);
-  color: #fff;
-}
-.btn-signal {
-  background: var(--indigo);
-  color: #fff;
-  box-shadow: 0 12px 28px -14px rgba(79, 85, 232, 0.8);
-}
-.btn-signal:hover { transform: translateY(-1px); }
-.btn-ink:hover { transform: translateY(-1px); }
-.btn-ghost {
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink);
-}
-.btn-ghost:hover { border-color: var(--mute-2); }
+.btn-ink { background: var(--ink); color: #fff; }
+.btn-ink:hover { background: #000; }
+.btn-signal { background: var(--indigo); color: #fff; }
+.btn-signal:hover { background: #4047d6; }
+.btn-ghost { background: transparent; color: var(--ink); border: 1px solid #c9c9d0; }
+.btn-ghost:hover { border-color: var(--ink); }
+.btn-light { background: #fff; color: var(--ink); }
+.btn-light:hover { background: #f0f0f3; }
 
 .panel {
   background: var(--card);
@@ -198,64 +145,25 @@ a { color: inherit; text-decoration: none; }
   border-radius: 20px;
 }
 
-/* Scroll reveal */
 .reveal {
   opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  transform: translateY(14px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
 }
 .reveal.in { opacity: 1; transform: none; }
 
 @keyframes rise {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: none; }
 }
-.rise { animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
-.rise-1 { animation-delay: 0.08s; }
-.rise-2 { animation-delay: 0.16s; }
-.rise-3 { animation-delay: 0.24s; }
-.rise-4 { animation-delay: 0.32s; }
-
-@keyframes beat {
-  0% { transform: scale(1); opacity: 0.9; }
-  100% { transform: scale(2.4); opacity: 0; }
-}
-.beat-ring { animation: beat 0.9s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
-
-@keyframes pop {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.08); }
-  100% { transform: scale(1); }
-}
-.pop { animation: pop 0.35s ease-out both; }
-
-@keyframes drop-in {
-  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
-  to { opacity: 1; transform: none; }
-}
-.drop-in { animation: drop-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
-
-@keyframes travel {
-  from { left: 0%; opacity: 0; }
-  15% { opacity: 1; }
-  85% { opacity: 1; }
-  to { left: 100%; opacity: 0; }
-}
-.travel { animation: travel 0.7s ease-in-out both; }
-.travel-rev { animation: travel 0.7s ease-in-out reverse both; }
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-.float { animation: float 7s ease-in-out infinite; }
+.rise { animation: rise 0.7s ease both; }
+.rise-1 { animation-delay: 0.06s; }
+.rise-2 { animation-delay: 0.12s; }
+.rise-3 { animation-delay: 0.18s; }
+.rise-4 { animation-delay: 0.24s; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .reveal { opacity: 1; transform: none; transition: none; }
-  .rise, .beat-ring, .pop, .drop-in, .travel, .travel-rev, .float { animation: none !important; }
+  .rise { animation: none !important; }
 }
-
-@keyframes blink { 50% { opacity: 0.25; } }
-.blink { animation: blink 1.4s steps(2, jump-none) infinite; }
-@media (prefers-reduced-motion: reduce) { .blink { animation: none; } }

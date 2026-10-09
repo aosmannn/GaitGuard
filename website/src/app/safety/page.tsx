@@ -44,7 +44,7 @@ export default function SafetyPage() {
           <ul className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {safety.map(([t, b], i) => (
               <Reveal as="li" key={t} delay={(i % 3) * 80} className="panel p-7">
-                <span className="font-mono text-[0.8rem] text-cue">0{i + 1}</span>
+                <span className="text-[0.85rem] font-semibold text-[#b45309]">{i + 1}</span>
                 <h3 className="mt-3 text-[1.15rem] font-semibold tracking-tight">{t}</h3>
                 <p className="mt-2 text-[0.98rem] leading-relaxed text-mute">{b}</p>
               </Reveal>
@@ -54,21 +54,20 @@ export default function SafetyPage() {
       </section>
 
       <section className="section pb-[var(--section)]">
-        <div className="relative overflow-hidden bg-night py-[clamp(80px,10vw,130px)] text-white">
-          <div className="pointer-events-none absolute inset-0" aria-hidden="true" style={{ background: "radial-gradient(40% 60% at 15% 0%, rgba(124,140,255,0.22), transparent 70%)" }} />
-          <div className="wrap relative">
+        <div className="bg-paper-2 py-[clamp(72px,9vw,112px)]">
+                    <div className="wrap relative">
             <Reveal className="max-w-2xl">
-              <p className="eyebrow !text-indigo-soft">Privacy</p>
+              <p className="eyebrow">Privacy</p>
               <h2 className="h2 mt-4">Your walk is nobody else&apos;s business.</h2>
             </Reveal>
             <ul className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {privacy.map((p, i) => (
-                <Reveal as="li" key={p.title} delay={(i % 3) * 80} className="rounded-2xl border border-white/10 bg-white/[0.04] p-7">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-soft/15 text-indigo-soft">
+                <Reveal as="li" key={p.title} delay={(i % 3) * 80} className="panel p-7">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo/10 text-indigo">
                     <Icon d={p.icon} />
                   </span>
-                  <h3 className="mt-5 text-[1.1rem] font-semibold">{p.title}</h3>
-                  <p className="mt-2 text-[0.96rem] leading-relaxed text-white/65">{p.body}</p>
+                  <h3 className="mt-5 text-[1.1rem] font-semibold tracking-tight">{p.title}</h3>
+                  <p className="mt-2 text-[0.96rem] leading-relaxed text-mute">{p.body}</p>
                 </Reveal>
               ))}
             </ul>

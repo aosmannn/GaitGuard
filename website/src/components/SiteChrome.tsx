@@ -5,27 +5,15 @@ export const REPO = "https://github.com/pogami/GaitGuardAI";
 export const AUTHOR_URL = "https://adamosman.dev";
 
 const nav = [
-  { href: "/how-it-works", label: "Method" },
+  { href: "/how-it-works", label: "How it works" },
   { href: "/research", label: "Research" },
   { href: "/safety", label: "Safety & privacy" },
-  { href: "/pilot", label: "Pilot" },
 ];
 
 export function SiteHeader() {
   return (
     <>
-      <div className="border-b border-white/10 bg-night text-white">
-        <div className="wrap flex h-9 items-center justify-between gap-4 text-[0.7rem]">
-          <p className="mono flex min-w-0 items-center gap-2 uppercase tracking-[0.12em] text-white/70">
-            <span className="blink h-1.5 w-1.5 shrink-0 rounded-full bg-cue" aria-hidden="true" />
-            <span className="truncate">Prototype v0.9 · Pilot open</span>
-          </p>
-          <Link href="/pilot" className="mono shrink-0 uppercase tracking-[0.12em] text-cue-soft hover:text-white">
-            Join →
-          </Link>
-        </div>
-      </div>
-      <header className="sticky top-0 z-50 border-b border-line bg-paper/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-line/80 bg-white/85 backdrop-blur-xl">
         <div className="wrap flex h-16 items-center justify-between gap-6">
           <Link href="/" aria-label="GaitGuard home">
             <Logo />
@@ -42,13 +30,13 @@ export function SiteHeader() {
               Join the pilot
             </Link>
             <details className="group relative md:hidden">
-              <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-[10px] border border-line bg-card" aria-label="Menu">
+              <summary className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full border border-line bg-white" aria-label="Menu">
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                   <path d="M4 7h16M4 12h16M4 17h16" />
                 </svg>
               </summary>
               <nav className="absolute right-0 top-12 w-56 rounded-2xl border border-line bg-card p-2 shadow-xl" aria-label="Mobile">
-                {[{ href: "/", label: "Home" }, ...nav].map((n) => (
+                {[{ href: "/", label: "Home" }, ...nav, { href: "/pilot", label: "Join the pilot" }].map((n) => (
                   <Link key={n.href} href={n.href} className="block rounded-xl px-4 py-3 text-[0.95rem] hover:bg-paper-2">
                     {n.label}
                   </Link>
@@ -67,7 +55,7 @@ export function SiteHeader() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-line bg-card">
+    <footer className="border-t border-line bg-paper-2">
       <div className="wrap grid gap-10 py-14 md:grid-cols-[1.5fr_1fr_1fr]">
         <div>
           <div className="flex items-center gap-2.5">
@@ -79,14 +67,14 @@ export function SiteFooter() {
           </p>
         </div>
         <nav aria-label="Footer" className="grid content-start gap-2 text-[0.9rem] text-mute">
-          <p className="label mb-1">Project</p>
-          <Link href="/how-it-works" className="hover:text-ink">Method</Link>
+          <p className="mb-1 text-[0.8rem] font-semibold text-ink">Project</p>
+          <Link href="/how-it-works" className="hover:text-ink">How it works</Link>
           <Link href="/research" className="hover:text-ink">Research</Link>
           <Link href="/safety" className="hover:text-ink">Safety & privacy</Link>
           <Link href="/pilot" className="hover:text-ink">Join the pilot</Link>
         </nav>
         <div className="grid content-start gap-2 text-[0.9rem] text-mute">
-          <p className="label mb-1">Links</p>
+          <p className="mb-1 text-[0.8rem] font-semibold text-ink">Links</p>
           <a href={REPO} target="_blank" rel="noopener noreferrer" className="hover:text-ink">Source on GitHub ↗</a>
         </div>
       </div>
@@ -98,11 +86,11 @@ export function SiteFooter() {
               Adam
             </a>
             {" · "}
-            <a href={AUTHOR_URL} target="_blank" rel="noopener noreferrer" className="mono hover:text-ink">
+            <a href={AUTHOR_URL} target="_blank" rel="noopener noreferrer" className="hover:text-ink">
               adamosman.dev
             </a>
           </p>
-          <p className="mono">© {new Date().getFullYear()} GaitGuard · MIT</p>
+          <p>© {new Date().getFullYear()} GaitGuard · MIT</p>
         </div>
       </div>
     </footer>
@@ -112,12 +100,11 @@ export function SiteFooter() {
 /** Shared page intro used by the inner pages. */
 export function PageHero({ eyebrow, title, intro }: { eyebrow: string; title: React.ReactNode; intro: string }) {
   return (
-    <section className="relative overflow-hidden border-b border-line">
-      <div className="paper-grid pointer-events-none absolute inset-0" aria-hidden="true" />
-      <div className="wrap relative py-[clamp(64px,9vw,120px)]">
+    <section className="border-b border-line bg-paper-2">
+      <div className="wrap py-[clamp(56px,8vw,104px)]">
         <p className="eyebrow rise">{eyebrow}</p>
-        <h1 className="display rise rise-1 mt-5 max-w-[17ch] text-[clamp(2.5rem,6vw,4.6rem)]">{title}</h1>
-        <p className="rise rise-2 mt-6 max-w-[38em] text-[1.12rem] leading-relaxed text-mute">{intro}</p>
+        <h1 className="display rise rise-1 mt-4 max-w-[18ch] text-[clamp(2.3rem,5vw,3.8rem)]">{title}</h1>
+        <p className="rise rise-2 mt-5 max-w-[38em] text-[1.1rem] leading-relaxed text-mute">{intro}</p>
       </div>
     </section>
   );

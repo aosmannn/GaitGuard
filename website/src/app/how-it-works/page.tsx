@@ -90,7 +90,7 @@ export default function HowItWorksPage() {
 
       <section className="section">
         <div className="wrap">
-          <Reveal className="grid gap-8 rounded-[22px] border border-line bg-card p-8 sm:p-12 lg:grid-cols-[1fr_1fr]">
+          <Reveal className="grid gap-8 rounded-2xl border border-line bg-card p-8 sm:p-12 lg:grid-cols-[1fr_1fr]">
             <div>
               <p className="eyebrow">About the gait score</p>
               <h2 className="mt-4 text-[clamp(1.6rem,3vw,2.3rem)] font-semibold leading-[1.1] tracking-[-0.03em]">

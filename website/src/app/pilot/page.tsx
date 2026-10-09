@@ -39,10 +39,10 @@ export default function PilotPage() {
               <p className="eyebrow">How it works</p>
               <h2 className="h2 mt-4">Four steps.</h2>
             </Reveal>
-            <ol className="mt-10 border-t border-ink/80">
+            <ol className="mt-10 border-t border-line">
               {steps.map(([t, b], i) => (
                 <Reveal as="li" key={t} delay={i * 60} className="grid grid-cols-[3rem_1fr] gap-3 border-b border-line py-6">
-                  <span className="mono text-[0.85rem] text-indigo">0{i + 1}</span>
+                  <span className="text-[0.9rem] font-semibold text-indigo">{i + 1}</span>
                   <div>
                     <h3 className="text-[1.15rem] font-semibold tracking-tight">{t}</h3>
                     <p className="mt-1.5 text-[0.98rem] leading-relaxed text-mute">{b}</p>
@@ -65,7 +65,7 @@ export default function PilotPage() {
           <ul className="grid gap-4 md:grid-cols-2">
             {asks.map(([t, b], i) => (
               <Reveal as="li" key={t} delay={(i % 2) * 80} className="panel p-7">
-                <p className="label">{t}</p>
+                <p className="text-[0.95rem] font-semibold text-ink">{t}</p>
                 <p className="mt-3 text-[1.02rem] leading-relaxed text-ink-2">{b}</p>
               </Reveal>
             ))}
