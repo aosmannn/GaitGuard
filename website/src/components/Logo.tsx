@@ -1,24 +1,25 @@
 import Image from "next/image";
 
-/** The GaitGuard app icon (from /branding): a tick dial around an ember G, as on the phone and Watch. */
-export function LogoMark({ size = 32, className = "" }: { size?: number; className?: string }) {
+/** The GaitGuard mark from /branding: the tick dial and the ember G, on a transparent background. */
+export function LogoMark({ size = 46, className = "" }: { size?: number; className?: string }) {
   return (
     <Image
-      src="/brand/gaitguard-logo-1024.png"
+      src="/brand/gaitguard-mark.svg"
       alt=""
       width={size}
       height={size}
       priority
-      className={`shrink-0 rounded-[22.5%] ring-1 ring-bone/20 ${className}`}
+      unoptimized
+      className={`shrink-0 ${className}`}
       style={{ width: size, height: size }}
     />
   );
 }
 
-export function Logo({ size = 36 }: { size?: number }) {
+export function Logo({ size = 48 }: { size?: number }) {
   return (
-    <span className="flex items-center gap-3">
-      <LogoMark size={size} />
+    <span className="flex items-center gap-2">
+      <LogoMark size={size} className="-my-1" />
       <span className="font-[family-name:var(--font-fraunces)] text-[1.25rem] font-medium tracking-tight">GaitGuard</span>
     </span>
   );
