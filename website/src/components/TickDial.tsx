@@ -180,18 +180,15 @@ export function TickDial({ className = "" }: { className?: string }) {
                 <span className="num mt-1 text-[clamp(4.5rem,13vw,6.6rem)] leading-none text-bone" ref={scoreRef}>
                   {DEMO_SCORES[0]}
                 </span>
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.span
-                    key={band.label}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                    className={`mt-2 text-[0.95rem] font-semibold ${band.accent}`}
-                  >
-                    {band.label}
-                  </motion.span>
-                </AnimatePresence>
+                <motion.span
+                  key={band.label}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                  className={`mt-2 text-[0.95rem] font-semibold ${band.accent}`}
+                >
+                  {band.label}
+                </motion.span>
               </motion.div>
             ) : (
               <motion.div
