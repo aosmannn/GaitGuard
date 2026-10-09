@@ -1,10 +1,14 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "GaitGuard: keep the beat when your steps stall";
 
-export default function OG() {
+export default async function OG() {
+  const buf = await readFile(path.join(process.cwd(), "public/brand/gaitguard-logo-1024.png"));
+  const logo = `data:image/png;base64,${buf.toString("base64")}`;
   return new ImageResponse(
     (
       <div
@@ -21,17 +25,7 @@ export default function OG() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <svg width="72" height="72" viewBox="0 0 64 64">
-            <defs>
-              <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="#ff8a5c" />
-                <stop offset="1" stopColor="#ff6a3a" />
-              </linearGradient>
-            </defs>
-            <rect width="64" height="64" rx="16" fill="url(#g)" />
-            <path d="M44.3 21.7 A16 16 0 1 0 47.5 36.1 L35 36.1" fill="none" stroke="#12100e" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="49.5" cy="19.5" r="3.6" fill="#f4eee6" />
-          </svg>
+          <img src={logo} width={84} height={84} alt="" style={{ borderRadius: 19 }} />
           <span style={{ fontSize: 40, fontWeight: 700 }}>GaitGuard</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
