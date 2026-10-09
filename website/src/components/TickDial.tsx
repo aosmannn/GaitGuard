@@ -19,13 +19,16 @@ const EMBER: RGB = [255, 122, 77];
 const DANGER: RGB = [255, 138, 122];
 const SOOT: RGB = [107, 99, 91];
 
-/** Mirrors GaitScoreCalculator.label in the app. */
-const DEMO_STATES = [
-  { score: 90, label: "Steady", fill: SAGE, accent: "text-sage" },
-  { score: 74, label: "Supported", fill: BRASS, accent: "text-brass" },
-  { score: 52, label: "Assisting", fill: AMBER, accent: "text-amber" },
-  { score: 28, label: "High Support", fill: DANGER, accent: "text-[#ff8a7a]" },
-] as const;
+/** Target scores the dial walks through; labels mirror GaitScoreCalculator.label. */
+const DEMO_SCORES = [90, 74, 52, 28] as const;
+
+type Band = { label: string; fill: RGB; accent: string };
+const bandFor = (s: number): Band => {
+  if (s >= 85) return { label: "Steady", fill: SAGE, accent: "text-sage" };
+  if (s >= 65) return { label: "Supported", fill: BRASS, accent: "text-brass" };
+  if (s >= 40) return { label: "Assisting", fill: AMBER, accent: "text-amber" };
+  return { label: "High Support", fill: DANGER, accent: "text-[#ff8a7a]" };
+};
 
 const mix = (a: RGB, b: RGB, t: number): RGB => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 const rgb = (c: RGB) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
@@ -37,36 +40,39 @@ const rgb = (c: RGB) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.roun
 export function TickDial({ className = "" }: { className?: string }) {
   const [running, setRunning] = useState(true);
   const [stateIndex, setStateIndex] = useState(0);
+  const [band, setBand] = useState<Band>(() => bandFor(DEMO_SCORES[0]));
   const [userPaused, setUserPaused] = useState(false);
   const reducedPref = useReducedMotion();
   const still = reducedPref || userPaused;
   const ticks = useRef<(SVGLineElement | null)[]>([]);
   const scoreRef = useRef<HTMLSpanElement>(null);
-  const score = useRef<number>(DEMO_STATES[0].score);
-  const fillColor = useRef<RGB>([...DEMO_STATES[0].fill]);
-
-  const demo = DEMO_STATES[stateIndex];
+  const score = useRef<number>(DEMO_SCORES[0]);
+  const fillColor = useRef<RGB>([...bandFor(DEMO_SCORES[0]).fill]);
+  const bandLabel = useRef(band.label);
 
   const writeScore = useCallback((v: number) => {
     score.current = v;
     if (scoreRef.current) scoreRef.current.textContent = String(Math.round(v));
+    const next = bandFor(v);
+    fillColor.current = next.fill;
+    if (next.label !== bandLabel.current) {
+      bandLabel.current = next.label;
+      setBand(next);
+    }
   }, []);
 
   // Cycle through Steady → Supported → Assisting → High Support while running.
   useEffect(() => {
     if (!running || still) return;
     const id = setInterval(() => {
-      setStateIndex((i) => (i + 1) % DEMO_STATES.length);
+      setStateIndex((i) => (i + 1) % DEMO_SCORES.length);
     }, CYCLE_MS);
     return () => clearInterval(id);
   }, [running, still]);
 
-  // Tween the score (and fill color) when the demo state changes, or when starting/stopping.
+  // Tween the score when the demo target changes, or when starting/stopping.
   useEffect(() => {
-    const target = running ? DEMO_STATES[stateIndex].score : 0;
-    const targetFill = running ? DEMO_STATES[stateIndex].fill : SAGE;
-    fillColor.current = targetFill;
-
+    const target = running ? DEMO_SCORES[stateIndex] : 0;
     if (still) {
       writeScore(target);
       return;
@@ -172,18 +178,18 @@ export function TickDial({ className = "" }: { className?: string }) {
               >
                 <span className="label !text-ash">Steadiness</span>
                 <span className="num mt-1 text-[clamp(4.5rem,13vw,6.6rem)] leading-none text-bone" ref={scoreRef}>
-                  {DEMO_STATES[0].score}
+                  {DEMO_SCORES[0]}
                 </span>
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.span
-                    key={demo.label}
+                    key={band.label}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                    className={`mt-2 text-[0.95rem] font-semibold ${demo.accent}`}
+                    className={`mt-2 text-[0.95rem] font-semibold ${band.accent}`}
                   >
-                    {demo.label}
+                    {band.label}
                   </motion.span>
                 </AnimatePresence>
               </motion.div>
