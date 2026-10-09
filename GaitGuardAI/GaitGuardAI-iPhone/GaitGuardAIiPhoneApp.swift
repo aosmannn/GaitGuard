@@ -8,6 +8,7 @@ struct GaitGuardAIiPhoneApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(connectivityManager)
+                .preferredColorScheme(.dark)
         }
     }
 }
