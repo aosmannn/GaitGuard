@@ -86,8 +86,8 @@ export default function ResearchPage() {
             </Reveal>
           ))}
 
-          <Reveal className="rounded-2xl border border-cue/30 bg-[#fff8ea] p-7 sm:p-10">
-            <p className="eyebrow !text-[#a8620a]">05 · The limits</p>
+          <Reveal className="rounded-2xl border border-amber/30 bg-amber/[0.07] p-7 sm:p-10">
+            <p className="eyebrow !text-amber">05 · The limits</p>
             <h2 className="mt-3 text-[clamp(1.5rem,2.6vw,2rem)] font-semibold tracking-[-0.025em]">What we don&apos;t know yet</h2>
             <ul className="mt-5 grid gap-4 text-[1rem] leading-relaxed text-ink-2 md:grid-cols-2">
               <li><strong className="font-semibold">GaitGuard itself hasn&apos;t been clinically tested.</strong> The research above supports the approach, not this specific app.</li>
@@ -104,10 +104,10 @@ export default function ResearchPage() {
           <h2 className="text-[1.6rem] font-semibold tracking-tight">References</h2>
           <ol className="mt-8 grid gap-5">
             {references.map((r, i) => (
-              <li key={r.id} id={`ref-${r.id}`} className="grid scroll-mt-24 grid-cols-[2rem_1fr] text-[0.95rem] leading-relaxed target:rounded-xl target:bg-indigo/10">
+              <li key={r.id} id={`ref-${r.id}`} className="grid scroll-mt-24 grid-cols-[2rem_1fr] text-[0.95rem] leading-relaxed target:rounded-xl target:bg-ember/10">
                 <span className="text-mute-2">{i + 1}.</span>
                 <span className="text-mute">
-                  {r.authors}. <a href={refUrl(r)} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline decoration-line underline-offset-4 hover:decoration-indigo">{r.title}</a>. <em>{r.source}</em>, {r.year}.
+                  {r.authors}. <a href={refUrl(r)} target="_blank" rel="noopener noreferrer" className="font-medium text-bone underline decoration-bone/25 underline-offset-4 hover:decoration-ember">{r.title}</a>. <em>{r.source}</em>, {r.year}.
                 </span>
               </li>
             ))}

@@ -2,11 +2,12 @@
 
 import { useId, useState } from "react";
 import { DEVICES, ROLES } from "@/lib/pilot";
+import { SubmitButton } from "./Button";
 
 type State = { status: "idle" | "sending" | "done" | "error"; message?: string };
 
 const field =
-  "mt-2 w-full rounded-xl border border-[#c9c9d0] bg-white px-4 py-3 text-[1rem] text-ink outline-none transition placeholder:text-mute-2 focus:border-indigo focus:ring-4 focus:ring-indigo/15";
+  "mt-2 w-full rounded-xl border border-bone/20 bg-char px-4 py-3 text-[1rem] text-bone outline-none transition placeholder:text-soot focus:border-ember focus:ring-4 focus:ring-ember/20";
 
 export function PilotForm() {
   const id = useId();
@@ -46,11 +47,11 @@ export function PilotForm() {
     return (
       <div role="status" className="rounded-2xl border border-good/40 bg-good/10 p-8">
         <p className="text-[0.85rem] font-semibold text-good">Received</p>
-        <h3 className="mt-3 text-[1.5rem] font-semibold tracking-tight text-ink">You&apos;re on the list.</h3>
-        <p className="mt-2 max-w-[34em] text-[1rem] leading-relaxed text-ink-2">
+        <h3 className="display mt-3 !text-[2rem] text-bone">You&apos;re on the list.</h3>
+        <p className="mt-2 max-w-[34em] text-[1rem] leading-relaxed text-ash">
           Thank you. We&apos;ll email you when there&apos;s a pilot build to try. Nothing else will be sent, and you can ask to be removed at any time.
         </p>
-        <button type="button" onClick={() => setState({ status: "idle" })} className="mt-5 text-[0.9rem] font-medium text-indigo underline underline-offset-4">
+        <button type="button" onClick={() => setState({ status: "idle" })} className="mt-5 text-[0.9rem] font-bold text-ember underline underline-offset-4">
           Add another person
         </button>
       </div>
@@ -62,20 +63,20 @@ export function PilotForm() {
   return (
     <form onSubmit={onSubmit} noValidate className="grid gap-5" aria-describedby={`${id}-err`}>
       <div>
-        <label htmlFor={`${id}-email`} className="text-[0.85rem] font-semibold text-ink">Email</label>
+        <label htmlFor={`${id}-email`} className="text-[0.85rem] font-bold text-bone">Email</label>
         <input id={`${id}-email`} name="email" type="email" autoComplete="email" required placeholder="you@example.com" className={field} />
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
-          <label htmlFor={`${id}-role`} className="text-[0.85rem] font-semibold text-ink">I am…</label>
+          <label htmlFor={`${id}-role`} className="text-[0.85rem] font-bold text-bone">I am…</label>
           <select id={`${id}-role`} name="role" required defaultValue="" className={field}>
             <option value="" disabled>Choose one</option>
             {ROLES.map((r) => <option key={r}>{r}</option>)}
           </select>
         </div>
         <div>
-          <label htmlFor={`${id}-dev`} className="text-[0.85rem] font-semibold text-ink">I have…</label>
+          <label htmlFor={`${id}-dev`} className="text-[0.85rem] font-bold text-bone">I have…</label>
           <select id={`${id}-dev`} name="devices" required defaultValue="" className={field}>
             <option value="" disabled>Choose one</option>
             {DEVICES.map((d) => <option key={d}>{d}</option>)}
@@ -84,7 +85,7 @@ export function PilotForm() {
       </div>
 
       <div>
-        <label htmlFor={`${id}-note`} className="text-[0.85rem] font-semibold text-ink">Anything we should know? <span className="normal-case tracking-normal">(optional)</span></label>
+        <label htmlFor={`${id}-note`} className="text-[0.85rem] font-bold text-bone">Anything we should know? <span className="normal-case tracking-normal">(optional)</span></label>
         <textarea id={`${id}-note`} name="note" rows={3} maxLength={1000} placeholder="Where freezing happens for you, what you'd want from the app, questions…" className={field} />
       </div>
 
@@ -93,8 +94,8 @@ export function PilotForm() {
         <label>Company<input name="company" tabIndex={-1} autoComplete="off" /></label>
       </div>
 
-      <label className="flex cursor-pointer items-start gap-3 text-[0.9rem] leading-relaxed text-ink-2">
-        <input type="checkbox" name="consent" required className="mt-1 h-5 w-5 shrink-0 accent-[var(--indigo)]" />
+      <label className="flex cursor-pointer items-start gap-3 text-[0.9rem] leading-relaxed text-ash">
+        <input type="checkbox" name="consent" required className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-ember)]" />
         <span>
           I&apos;m happy to be emailed about the GaitGuard pilot. I understand it&apos;s an early prototype and not a medical device, and that this form isn&apos;t a clinical study.
         </span>
@@ -102,13 +103,13 @@ export function PilotForm() {
 
       <div id={`${id}-err`} aria-live="polite">
         {state.status === "error" && (
-          <p className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-[0.92rem] text-ink">{state.message}</p>
+          <p className="rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-[0.92rem] text-bone">{state.message}</p>
         )}
       </div>
 
-      <button type="submit" disabled={busy} className={`btn btn-signal w-full sm:w-auto sm:justify-self-start disabled:opacity-60`}>
-        {busy ? "Sending…" : "Join the pilot"}
-      </button>
+      <div className="sm:justify-self-start">
+        <SubmitButton disabled={busy}>{busy ? "Sending…" : "Join the pilot"}</SubmitButton>
+      </div>
     </form>
   );
 }

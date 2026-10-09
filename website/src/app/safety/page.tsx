@@ -44,7 +44,7 @@ export default function SafetyPage() {
           <ul className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {safety.map(([t, b], i) => (
               <Reveal as="li" key={t} delay={(i % 3) * 80} className="panel p-7">
-                <span className="text-[0.85rem] font-semibold text-[#b45309]">{i + 1}</span>
+                <span className="text-[0.85rem] font-semibold text-amber">{i + 1}</span>
                 <h3 className="mt-3 text-[1.15rem] font-semibold tracking-tight">{t}</h3>
                 <p className="mt-2 text-[0.98rem] leading-relaxed text-mute">{b}</p>
               </Reveal>
@@ -54,7 +54,7 @@ export default function SafetyPage() {
       </section>
 
       <section className="section pb-[var(--section)]">
-        <div className="bg-paper-2 py-[clamp(72px,9vw,112px)]">
+        <div className="border-y border-bone/10 bg-hearth py-[clamp(72px,9vw,112px)]">
                     <div className="wrap relative">
             <Reveal className="max-w-2xl">
               <p className="eyebrow">Privacy</p>

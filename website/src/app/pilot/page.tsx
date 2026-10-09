@@ -39,7 +39,7 @@ export default function PilotPage() {
               <p className="eyebrow">How it works</p>
               <h2 className="h2 mt-4">Four steps.</h2>
             </Reveal>
-            <ol className="mt-10 border-t border-line">
+            <ol className="mt-10 border-t border-bone/15">
               {steps.map(([t, b], i) => (
                 <Reveal as="li" key={t} delay={i * 60} className="grid grid-cols-[3rem_1fr] gap-3 border-b border-line py-6">
                   <span className="text-[0.9rem] font-semibold text-indigo">{i + 1}</span>
