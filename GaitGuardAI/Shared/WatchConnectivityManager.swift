@@ -12,18 +12,21 @@ struct AssistEvent: Codable, Identifiable {
     let timestamp: Date
     let type: String // "start" or "turn"
     let severity: Double // 0.0 to 1.0, magnitude normalized
-    let duration: TimeInterval? // Optional: how long the freeze lasted
+    var duration: TimeInterval? // Optional: how long the freeze lasted (filled in when the freeze ends)
+    var helpful: Bool? // Optional: the wearer's thumbs-up / thumbs-down on this cue
 
-    init(id: UUID = UUID(), timestamp: Date = Date(), type: String, severity: Double, duration: TimeInterval? = nil) {
+    init(id: UUID = UUID(), timestamp: Date = Date(), type: String, severity: Double,
+         duration: TimeInterval? = nil, helpful: Bool? = nil) {
         self.id = id
         self.timestamp = timestamp
         self.type = type
         self.severity = severity
         self.duration = duration
+        self.helpful = helpful
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, timestamp, type, severity, duration
+        case id, timestamp, type, severity, duration, helpful
     }
 
     init(from decoder: Decoder) throws {
@@ -33,6 +36,7 @@ struct AssistEvent: Codable, Identifiable {
         type = try container.decode(String.self, forKey: .type)
         severity = try container.decode(Double.self, forKey: .severity)
         duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
+        helpful = try container.decodeIfPresent(Bool.self, forKey: .helpful)
     }
 }
 
@@ -52,14 +56,6 @@ struct StepData: Codable {
     let timestamp: Date
 }
 
-// Live accelerometer data point
-struct AccelerometerData: Codable {
-    let x: Double
-    let y: Double
-    let z: Double
-    let timestamp: Date
-}
-
 // Calibration results
 struct CalibrationResults: Codable {
     let average: Double
@@ -67,15 +63,51 @@ struct CalibrationResults: Codable {
     let baselineThreshold: Double
     let sampleCount: Int
     let timestamp: Date
+    /// Walking cadence measured during calibration (steps per minute).
+    var cadence: Double? = nil
+    var steps: Int? = nil
+    /// 0…1 quality of the calibration walk.
+    var quality: Double? = nil
+
+    var qualityLabel: String? {
+        guard let quality else { return nil }
+        return quality >= 0.7 ? "Good" : quality >= 0.45 ? "Fair" : "Low"
+    }
 }
 
 // Settings that can be controlled from iPhone
-struct WatchSettings: Codable {
+struct WatchSettings: Codable, Equatable {
     var hapticIntensity: Double = 1.0 // 0.0 to 1.0
     var sensitivity: Double = 1.3 // Motion threshold
     var adaptiveThreshold: Bool = true
-    var hapticPattern: String = "directionUp" // "directionUp", "notification", "start", "stop"
+    var hapticPattern: String = "directionUp" // "directionUp", "notification", "start", "stop", "click"
     var repeatHaptics: Bool = false
+    /// Rhythmic cue tempo in beats per minute.
+    var cueTempo: Double = 100
+    /// Number of haptic beats in each cue.
+    var cueBeats: Int = 4
+    /// Play a soft beat on the wrist at the cue tempo while walking (opt-in; uses more battery).
+    var walkBeat: Bool = false
+
+    init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case hapticIntensity, sensitivity, adaptiveThreshold, hapticPattern, repeatHaptics, cueTempo, cueBeats, walkBeat
+    }
+
+    // Tolerant decoding so settings saved by older builds (or sent by an older paired app) still load.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = WatchSettings()
+        hapticIntensity = try c.decodeIfPresent(Double.self, forKey: .hapticIntensity) ?? d.hapticIntensity
+        sensitivity = try c.decodeIfPresent(Double.self, forKey: .sensitivity) ?? d.sensitivity
+        adaptiveThreshold = try c.decodeIfPresent(Bool.self, forKey: .adaptiveThreshold) ?? d.adaptiveThreshold
+        hapticPattern = try c.decodeIfPresent(String.self, forKey: .hapticPattern) ?? d.hapticPattern
+        repeatHaptics = try c.decodeIfPresent(Bool.self, forKey: .repeatHaptics) ?? d.repeatHaptics
+        cueTempo = try c.decodeIfPresent(Double.self, forKey: .cueTempo) ?? d.cueTempo
+        cueBeats = try c.decodeIfPresent(Int.self, forKey: .cueBeats) ?? d.cueBeats
+        walkBeat = try c.decodeIfPresent(Bool.self, forKey: .walkBeat) ?? d.walkBeat
+    }
 }
 
 /// Shared Watch gait-score formula (Watch is source of truth when live).
@@ -108,13 +140,17 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     @Published var isWatchCalibrating = false
     @Published var calibrationProgress: Double = 0.0
     @Published var calibrationTimeRemaining: Int = 30
+    /// "idle", "getReady" or "walking" while a calibration is running on the Watch.
+    @Published var calibrationPhase: String = "idle"
+    @Published var calibrationSteps: Int = 0
+    @Published var calibrationCadence: Double?
+    @Published var calibrationError: String?
     @Published var lastHeartbeatTime: Date?
     @Published var heartbeatLatency: TimeInterval = 0.0
     @Published var sessionActivated = false
     @Published var activationState: WCSessionActivationState = .notActivated
     /// Set when monitoring starts; cleared when monitoring stops. Not WC activation time.
     @Published var sessionStartTime: Date?
-    @Published var liveAccelerometerData: [AccelerometerData] = []
     @Published var lastCalibrationResults: CalibrationResults?
     @Published var isWatchMonitoring = false
     @Published var latestStepData: StepData?
@@ -128,6 +164,16 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     /// Watch-only: brief assist cue banner payload.
     @Published var assistBannerType: String?
     @Published var assistBannerVisible = false
+    /// iPhone: last time anything arrived from the Watch. Drives the "out of range" state.
+    @Published var lastWatchContact: Date?
+
+    /// iPhone: monitoring is on, but the Watch hasn't reported in a while (out of range or asleep).
+    /// The Watch keeps cueing on its own; this only means the iPhone view may be behind.
+    func isWatchStale(now: Date = Date()) -> Bool {
+        guard isWatchMonitoring else { return false }
+        guard let last = lastWatchContact else { return !isWatchReachable }
+        return now.timeIntervalSince(last) > 15
+    }
 
     private let session: WCSession?
     private var heartbeatTimer: Timer?
@@ -137,13 +183,13 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     private let notesKey = "gaitguard.dailyNotes"
     private let calibrationKey = "gaitguard.lastCalibrationResults"
     private var pendingEvents: [AssistEvent] = []
-    private let maxLiveDataPoints = 500
     private let eventRetentionDays: TimeInterval = 90 * 24 * 60 * 60
     private var cachedGaitScore: Int = 0
     /// Full application-context payload. `updateApplicationContext` REPLACES the previous
     /// dictionary, so every push must send the merged state or fields overwrite each other.
     private var contextCache: [String: Any] = [:]
     private var assistBannerClearWork: DispatchWorkItem?
+    private var lastScoreSent: (score: Int, at: Date)?
 
     override init() {
         if WCSession.isSupported() {
@@ -163,6 +209,10 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         loadCalibrationResults()
         updateConnectionStatus()
         syncPendingEvents()
+
+        #if DEBUG && !os(watchOS)
+        if ProcessInfo.processInfo.arguments.contains("-seedDemoData") { seedDemoData() }
+        #endif
 
         #if DEBUG
         print("[GaitGuard] WatchConnectivityManager initialized")
@@ -256,6 +306,46 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         }
         #endif
     }
+
+    #if DEBUG && !os(watchOS)
+    /// Debug-only: fills the UI with a realistic, in-memory sample history for screenshots.
+    /// Launch with `-seedDemoData`. Nothing is persisted.
+    private func seedDemoData() {
+        var rng = SystemRandomNumberGenerator()
+        var seed: UInt64 = 42
+        func next() -> Double {
+            seed = seed &* 6364136223846793005 &+ 1442695040888963407
+            return Double(seed >> 33) / Double(1 << 31)
+        }
+        _ = rng.next()
+        let cal = Calendar.current
+        var events: [AssistEvent] = []
+        for day in 1...27 {
+            guard let date = cal.date(byAdding: .day, value: -day, to: Date()) else { continue }
+            let base = 9.0 - Double(27 - day) * 0.12 // gradually fewer cues over time
+            let count = max(2, Int(base + next() * 4 - 1))
+            for _ in 0..<count {
+                let r = next()
+                let hour = r < 0.5 ? 7 + Int(next() * 4) : r < 0.85 ? 16 + Int(next() * 4) : 12 + Int(next() * 3)
+                guard let t = cal.date(bySettingHour: hour, minute: Int(next() * 59), second: Int(next() * 59), of: date) else { continue }
+                events.append(AssistEvent(timestamp: t, type: next() < 0.65 ? "start" : "turn",
+                                          severity: 0.15 + next() * 0.8, duration: 0.8 + next() * 2.8))
+            }
+        }
+        for hour in [7, 8, 9, 10] {
+            if let t = cal.date(bySettingHour: hour, minute: Int(next() * 50), second: 12, of: Date()), t < Date() {
+                events.append(AssistEvent(timestamp: t, type: next() < 0.6 ? "start" : "turn",
+                                          severity: 0.2 + next() * 0.7, duration: 1.0 + next() * 2.0))
+            }
+        }
+        assistEvents = events
+        lastCalibrationResults = CalibrationResults(average: 1.02, standardDeviation: 0.18, baselineThreshold: 1.38,
+                                                    sampleCount: 1500, timestamp: Date().addingTimeInterval(-3 * 86400))
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        if let d = cal.date(byAdding: .day, value: -1, to: Date()) { dailyNotes[f.string(from: d)] = "Stiff after a late dose. Doorways were the hardest." }
+        dailyNotes[f.string(from: Date())] = "Slept well. Morning walk felt steadier."
+    }
+    #endif
 
     // MARK: - Settings Management
 
@@ -386,12 +476,21 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
 
     // MARK: - Watch → iPhone (send from watch)
 
-    func sendAssistEvent(type: String, severity: Double = 0.5, duration: TimeInterval? = nil) {
+    @discardableResult
+    func sendAssistEvent(type: String, severity: Double = 0.5, duration: TimeInterval? = nil) -> AssistEvent {
         let event = AssistEvent(timestamp: Date(), type: type, severity: severity, duration: duration)
+        sendAssistEvent(event, banner: true)
+        return event
+    }
 
+    /// Send (or re-send, with a measured duration or the wearer's feedback) an event.
+    /// The same `id` updates the iPhone's copy instead of adding a new one.
+    func sendAssistEvent(_ event: AssistEvent, banner: Bool) {
         #if os(watchOS)
-        DispatchQueue.main.async { [weak self] in
-            self?.showAssistBanner(type: type)
+        if banner {
+            DispatchQueue.main.async { [weak self] in
+                self?.showAssistBanner(type: event.type)
+            }
         }
         #endif
 
@@ -405,7 +504,7 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
 
         #if DEBUG
         #if os(watchOS)
-        print("[GaitGuard] Watch → Assist event sent: \(type) (severity: \(String(format: "%.2f", severity)))")
+        print("[GaitGuard] Watch → Assist event sent: \(event.type) (severity: \(String(format: "%.2f", event.severity)))")
         #endif
         #endif
 
@@ -505,7 +604,12 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            if self.assistEvents.contains(where: { $0.id == event.id }) { return }
+            if let idx = self.assistEvents.firstIndex(where: { $0.id == event.id }) {
+                // Same cue re-sent with a measured duration or a thumbs-up/down.
+                self.assistEvents[idx] = event
+                self.saveEvents()
+                return
+            }
             // Also skip near-duplicates with same timestamp+type (legacy events without stable UUID on wire)
             if self.assistEvents.contains(where: {
                 abs($0.timestamp.timeIntervalSince(event.timestamp)) < 0.05 && $0.type == event.type
@@ -548,27 +652,8 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Live Accelerometer Data Streaming
-
-    #if os(watchOS)
-    func sendAccelerometerData(x: Double, y: Double, z: Double, timestamp: Date) {
-        guard let session = session, session.activationState == .activated else { return }
-
-        let data = AccelerometerData(x: x, y: y, z: z, timestamp: timestamp)
-
-        guard let encoded = try? JSONEncoder().encode(data) else { return }
-
-        if session.isReachable {
-            session.sendMessage(["accelerometerData": encoded], replyHandler: nil) { error in
-                #if DEBUG
-                print("[GaitGuard] ⚠️ sendMessage accelerometerData failed: \(error.localizedDescription)")
-                #endif
-            }
-        }
-    }
-    #endif
-
-    func sendCalibrationResults(average: Double, standardDeviation: Double, baselineThreshold: Double, sampleCount: Int) {
+    func sendCalibrationResults(average: Double, standardDeviation: Double, baselineThreshold: Double, sampleCount: Int,
+                                cadence: Double? = nil, steps: Int? = nil, quality: Double? = nil) {
         #if os(watchOS)
         guard let session = session, session.activationState == .activated else { return }
 
@@ -577,7 +662,10 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
             standardDeviation: standardDeviation,
             baselineThreshold: baselineThreshold,
             sampleCount: sampleCount,
-            timestamp: Date()
+            timestamp: Date(),
+            cadence: cadence,
+            steps: steps,
+            quality: quality
         )
 
         DispatchQueue.main.async { [weak self] in
@@ -605,44 +693,42 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
 
     // MARK: - Test Haptic
 
-    func testHaptic() {
+    /// Ask the Watch to play one rhythmic cue. Completion reports whether the Watch confirmed it.
+    func testHaptic(completion: ((Bool) -> Void)? = nil) {
         updateConnectionStatus()
-
-        guard let session = session else {
-            #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot test haptic: WCSession not available")
-            #endif
+        guard let session = session, session.activationState == .activated, session.isReachable else {
+            completion?(false)
             return
         }
-
-        guard session.activationState == .activated else {
-            #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot test haptic: WCSession not activated")
-            #endif
-            return
-        }
-
-        guard session.isReachable else {
-            #if DEBUG
-            print("[GaitGuard] ⚠️ Cannot test haptic: Watch not reachable")
-            #endif
-            return
-        }
-
-        session.sendMessage(
-            ["testHaptic": true],
-            replyHandler: { _ in
-                #if DEBUG
-                print("[GaitGuard] ✅ Test haptic confirmed by watch")
-                #endif
-            },
-            errorHandler: { error in
-                #if DEBUG
-                print("[GaitGuard] ⚠️ testHaptic sendMessage failed: \(error.localizedDescription)")
-                #endif
-            }
-        )
+        session.sendMessage(["testHaptic": true], replyHandler: { _ in
+            DispatchQueue.main.async { completion?(true) }
+        }, errorHandler: { _ in
+            DispatchQueue.main.async { completion?(false) }
+        })
     }
+
+    #if !os(watchOS)
+    /// Start the 30-second calibration walk on the Watch from the iPhone.
+    func requestStartCalibration(completion: @escaping (Bool) -> Void) {
+        guard let session = session, session.activationState == .activated, session.isReachable else {
+            completion(false)
+            return
+        }
+        session.sendMessage(["startCalibration": true], replyHandler: { _ in
+            DispatchQueue.main.async { completion(true) }
+        }, errorHandler: { _ in
+            DispatchQueue.main.async { completion(false) }
+        })
+    }
+    #endif
+
+    #if !os(watchOS)
+    /// Stop a calibration that is running on the Watch.
+    func requestCancelCalibration() {
+        guard let session = session, session.activationState == .activated, session.isReachable else { return }
+        session.sendMessage(["cancelCalibration": true], replyHandler: nil, errorHandler: nil)
+    }
+    #endif
 
     // MARK: - Factory Reset
 
@@ -720,7 +806,7 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         stopHeartbeat()
 
         #if os(watchOS)
-        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { [weak self] _ in
             self?.sendHeartbeat()
         }
         #endif
@@ -739,10 +825,14 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     func updateCachedGaitScore(_ score: Int) {
         cachedGaitScore = score
         #if os(watchOS)
-        // Avoid flooding WC: cache here; heartbeat + step payloads carry the score.
         DispatchQueue.main.async { [weak self] in
             self?.latestGaitScore = score
         }
+        // Push score changes straight away (at most once a second) so the iPhone ring moves with the Watch.
+        guard let session = session, session.activationState == .activated, session.isReachable else { return }
+        if let last = lastScoreSent, last.score == score || Date().timeIntervalSince(last.at) < 1 { return }
+        lastScoreSent = (score, Date())
+        session.sendMessage(["gaitScore": score], replyHandler: nil, errorHandler: nil)
         #endif
     }
 
@@ -929,6 +1019,9 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
 
     private func handleIncomingMessage(_ message: [String : Any], session: WCSession, replyHandler: (([String : Any]) -> Void)?) {
+        #if !os(watchOS)
+        DispatchQueue.main.async { [weak self] in self?.lastWatchContact = Date() }
+        #endif
         if let timestamp = message["heartbeat"] as? TimeInterval {
             #if !os(watchOS)
             let now = Date()
@@ -980,6 +1073,10 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 let isCalibrating: Bool
                 let progress: Double
                 let timeRemaining: Int
+                var phase: String? = nil
+                var steps: Int? = nil
+                var cadence: Double? = nil
+                var error: String? = nil
             }
 
             if let status = try? JSONDecoder().decode(CalibrationStatus.self, from: data) {
@@ -987,45 +1084,30 @@ extension WatchConnectivityManager: WCSessionDelegate {
                     self?.isWatchCalibrating = status.isCalibrating
                     self?.calibrationProgress = status.progress
                     self?.calibrationTimeRemaining = status.timeRemaining
+                    self?.calibrationPhase = status.phase ?? (status.isCalibrating ? "walking" : "idle")
+                    self?.calibrationSteps = status.steps ?? 0
+                    self?.calibrationCadence = status.cadence
+                    if status.isCalibrating { self?.calibrationError = nil }
+                    else if let e = status.error { self?.calibrationError = e }
                 }
             }
         }
 
-        if let data = message["accelerometerData"] as? Data,
-           let accelData = try? JSONDecoder().decode(AccelerometerData.self, from: data) {
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.liveAccelerometerData.append(accelData)
-
-                if self.liveAccelerometerData.count > self.maxLiveDataPoints {
-                    self.liveAccelerometerData.removeFirst(self.liveAccelerometerData.count - self.maxLiveDataPoints)
-                }
-            }
-        }
         #endif
 
         #if os(watchOS)
         if message["testHaptic"] != nil {
-            let device = WKInterfaceDevice.current()
-            let hapticType: WKHapticType
-            switch watchSettings.hapticPattern {
-            case "notification":
-                hapticType = .notification
-            case "start":
-                hapticType = .start
-            case "stop":
-                hapticType = .stop
-            case "click":
-                hapticType = .click
-            default:
-                hapticType = .directionUp
-            }
-            device.play(hapticType)
-            replyHandler?([:])
+            NotificationCenter.default.post(name: NSNotification.Name("PlayTestCue"), object: nil)
+            replyHandler?(["ok": true])
+        }
 
-            #if DEBUG
-            print("[GaitGuard] Watch → Test haptic triggered")
-            #endif
+        if message["cancelCalibration"] != nil {
+            NotificationCenter.default.post(name: NSNotification.Name("RemoteCancelCalibration"), object: nil)
+        }
+
+        if message["startCalibration"] != nil {
+            NotificationCenter.default.post(name: NSNotification.Name("RemoteStartCalibration"), object: nil)
+            replyHandler?(["ok": true])
         }
 
         if message["resetToFactory"] != nil {
