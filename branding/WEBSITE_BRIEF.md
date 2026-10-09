@@ -45,3 +45,49 @@ Matte, warm, calm, editorial. Dark charcoal, never pure black or neon. One hot a
 ## Page ideas
 Hero (dial + one sentence + App Store button when live) → how it works in three steps (calibrate, walk, feel the beat) → features → "Built for my mom" story → safety/what it is not → FAQ → footer with disclaimer.
 Accessibility matters here: large type, strong contrast, reduced-motion friendly (the dial animation must be optional).
+
+---
+
+# How the app works (structure, detection, new features)
+
+## App structure
+**iPhone app, four tabs plus onboarding**
+- **Home**: the live session. A tick dial with the Steadiness score, plus time, steps and cadence while walking. Below it: cues today (with an hourly mini chart and "fewer/more than yesterday"), last cue, and calibration status. Tap the dial to start or stop monitoring on the Watch.
+- **History**: a timeline of every cue, grouped by day. Each shows start vs turn, strength (mild / moderate / strong), how long the freeze lasted, and whether the wearer marked it helpful. Filter by type, add a daily note (medication timing, sleep, how walking felt), export CSV.
+- **Trends**: week, month or 3 months. Daily average, comparison with the previous period, time-of-day pattern, strength split, and the calibration baseline.
+- **Tune**: cue tempo (60-130 bpm), beats per cue, strength, haptic style, repeat while frozen, beat while walking, detection mode (Everyday, Exercise, High alert, Custom), send a test cue, calibration, export, reset.
+- **Onboarding (5 steps)**: feel the beat on the phone, name and walking pace, live Watch pairing, calibration walk, safety acknowledgement.
+
+**Apple Watch app (works on its own, phone not required while walking)**
+- Dial home: tap to start, Stop pill while running, live Steadiness score.
+- After every cue: "Did it help?" with a tick and a cross.
+- Pace page (cadence, distance) and Today page (cues, steps, last cue, calibrate).
+- Calibration screen with a get-ready countdown and a filling dial.
+
+**How they work together**: start and stop from either device and they stay in sync. Settings changed on the phone apply to the Watch. If the phone is away, the Watch keeps detecting and cueing, then syncs history later. No account needed; data stays on the devices (confirm before making any cloud or privacy claims).
+
+## How gait detection works (plain language)
+1. The Watch's motion sensor is read 50 times a second, with gravity removed.
+2. Every half second it studies the last 3 seconds and splits the movement into two kinds: the steady rhythm of walking, and fast trembling.
+3. It only treats something as a possible freeze if you were walking a moment ago, the walking rhythm has stopped, and trembling-like movement shows up for about 1.5 seconds. That means gesturing, eating or sitting still shouldn't trigger it.
+4. Turns: it only cues when you turn about 70 degrees and your stride slows down while you do. A smooth turn while still walking is ignored.
+5. When it triggers, the Watch plays a short run of haptic taps at your tempo (default 100 bpm, 4 beats). If "repeat while frozen" is on, it repeats a few times while the freeze continues.
+6. It then measures how long the freeze lasted and updates the History entry.
+7. High alert mode is more sensitive and also cues when walking simply stalls. Exercise mode is calmer.
+8. It is personal. The 30-second calibration walk records your pace and sets your own thresholds. After each cue the wearer can tap tick or cross, and the app becomes slightly more or less sensitive.
+9. Steadiness score: built from how regular the stride is and how much of the last 10 minutes was spent frozen (not a count of cues).
+10. Battery: warns at 20%, stops monitoring and alerts at 10%.
+
+Honest status: the logic is covered by automated tests on simulated signals, but it has not been validated on real patients. Real-world accuracy is unproven. Website copy must reflect that.
+
+## New in this version (what to announce)
+- Rebuilt detection that waits for walking first and uses your own baseline
+- Freeze duration measured and shown in History
+- Smarter calibration: checks you actually walked, learns your pace, suggests a matching cue tempo
+- Thumbs up / thumbs down after each cue, and the app learns from it
+- Beat while walking (optional metronome on the wrist)
+- Steadiness score based on real stride data
+- Low-battery warning and automatic stop
+- Interactive onboarding with live Watch pairing
+- Brand new design: custom floating navigation bar, tick-dial home, serif numerals, matte dark theme
+- New Watch app design
