@@ -24,26 +24,26 @@ const siteUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "GaitGuard: rhythmic cueing for freezing of gait",
+    default: "GaitGuard: a steady beat for every step",
     template: "%s · GaitGuard",
   },
   description:
-    "GaitGuard detects freezing-of-gait moments on Apple Watch and answers with a rhythmic haptic cue, while your iPhone mirrors every moment live. Not a medical device.",
+    "GaitGuard is an iPhone and Apple Watch app for people with Parkinson's who experience freezing of gait. When steps start to freeze, your Watch taps a gentle rhythm on your wrist. A cueing aid, not a medical device.",
   applicationName: "GaitGuard",
   openGraph: {
     type: "website",
     locale: "en_US",
     url: siteUrl,
     siteName: "GaitGuard",
-    title: "GaitGuard: keep the beat when your steps stall",
+    title: "GaitGuard: a steady beat for every step",
     description:
-      "Apple Watch freeze detection with rhythmic haptic cueing, mirrored live on iPhone. Not a medical device.",
+      "When your steps start to freeze, your Apple Watch taps a gentle rhythm on your wrist. For people with Parkinson's. A cueing aid, not a medical device.",
   },
   twitter: {
     card: "summary_large_image",
     title: "GaitGuard",
     description:
-      "Keep the beat when your steps stall. Apple Watch + iPhone. Not a medical device.",
+      "A steady beat for every step. iPhone + Apple Watch for people with Parkinson's. A cueing aid, not a medical device.",
   },
   robots: { index: true, follow: true },
 };

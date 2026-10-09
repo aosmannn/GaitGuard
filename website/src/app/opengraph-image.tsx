@@ -4,7 +4,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "GaitGuard: keep the beat when your steps stall";
+export const alt = "GaitGuard: a steady beat for every step";
 
 export default async function OG() {
   const buf = await readFile(path.join(process.cwd(), "public/brand/gaitguard-logo-1024.png"));
@@ -29,8 +29,8 @@ export default async function OG() {
           <span style={{ fontSize: 40, fontWeight: 700 }}>GaitGuard</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <span style={{ fontSize: 80, fontWeight: 600, letterSpacing: -3, lineHeight: 1.02 }}>Keep the beat when your steps stall.</span>
-          <span style={{ fontSize: 30, color: "#a39a90" }}>Rhythmic haptic cueing for freezing of gait · Apple Watch + iPhone</span>
+          <span style={{ fontSize: 80, fontWeight: 600, letterSpacing: -3, lineHeight: 1.02 }}>A steady beat for every step.</span>
+          <span style={{ fontSize: 30, color: "#a39a90" }}>For people with Parkinson\u2019s · iPhone + Apple Watch · A cueing aid, not a medical device</span>
         </div>
       </div>
     ),

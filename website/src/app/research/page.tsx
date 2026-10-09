@@ -46,7 +46,7 @@ const sections = [
         <Cite ids={["bachlin2010"]} /> A haptic cue on the wrist is private and silent, works in noisy places, and doesn&apos;t require headphones.
       </>
     ),
-    app: "GaitGuard uses the Apple Watch's built-in motion sensors to cue on demand, with a cooldown so it doesn't buzz constantly.",
+    app: "GaitGuard uses the Apple Watch's built-in motion sensors to respond when your walking stalls, with a cooldown so it doesn't buzz constantly.",
   },
   {
     eyebrow: "04 · The context",
@@ -90,8 +90,8 @@ export default function ResearchPage() {
             <p className="eyebrow !text-amber">05 · The limits</p>
             <h2 className="mt-3 text-[clamp(1.5rem,2.6vw,2rem)] font-semibold tracking-[-0.025em]">What we don&apos;t know yet</h2>
             <ul className="mt-5 grid gap-4 text-[1rem] leading-relaxed text-ink-2 md:grid-cols-2">
-              <li><strong className="font-semibold">GaitGuard itself hasn&apos;t been clinically tested.</strong> The research above supports the approach, not this specific app.</li>
-              <li><strong className="font-semibold">Detection isn&apos;t perfect.</strong> Wrist-only sensing will miss some freezes and occasionally cue when you don&apos;t need it. Calibration and sensitivity settings help.</li>
+              <li><strong className="font-semibold">GaitGuard itself hasn&apos;t been tested on real patients.</strong> The research above supports the approach, not this specific app.</li>
+              <li><strong className="font-semibold">It will get things wrong.</strong> Wrist-only sensing will miss some freezes and occasionally cue when you don&apos;t need it. Calibration, your tick-or-cross feedback and the sensitivity modes help, but real-world accuracy is unproven.</li>
               <li><strong className="font-semibold">Most cueing evidence is auditory.</strong> Vibrating (haptic) cues are less studied than sound-based ones.</li>
               <li><strong className="font-semibold">Cueing works best with training.</strong> Studies pair cues with strategies taught by physical therapists. Use GaitGuard alongside that care, not instead of it.<Cite ids={["keus2014"]} /></li>
             </ul>

@@ -36,7 +36,7 @@ export function PilotForm() {
         form.reset();
         setState({ status: "done" });
       } else {
-        setState({ status: "error", message: json?.error ?? "Something went wrong. Please try again." });
+        setState({ status: "error", message: res.status === 503 ? "Pilot sign-ups aren't switched on yet. For now, you can reach Adam through adamosman.dev." : (json?.error ?? "Something went wrong. Please try again.") });
       }
     } catch {
       setState({ status: "error", message: "Couldn't reach the server. Check your connection and try again." });

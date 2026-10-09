@@ -9,10 +9,10 @@ export const metadata: Metadata = {
 };
 
 const principles = [
-  ["Honest about limits", "GaitGuard is a prototype and a cueing aid, not a medical device. We say what the evidence supports and what it doesn't."],
-  ["Private by default", "No account, no cloud, no tracking in the app. Your walking data stays on your own devices."],
+  ["Honest about limits", "GaitGuard is a cueing aid, not a medical device, and it hasn't been tested on real patients yet. We say what the evidence supports and what it doesn't."],
+  ["Private by default", "No account, and no advertising or analytics in the app. Your walking data stays on your phone and Watch."],
   ["Built with the people who'd use it", "The pilot exists because the most useful feedback comes from people who walk with freezing, and the people beside them."],
-  ["Open", "The code is open source, so anyone can see exactly how detection and cueing work."],
+  ["Open", "The code is open source, so anyone can see exactly how GaitGuard works."],
 ];
 
 export default function AboutPage() {
@@ -21,7 +21,7 @@ export default function AboutPage() {
       <PageHero
         eyebrow="About"
         title={<>An independent project, <span className="serif">built in the open.</span></>}
-        intro="GaitGuard is a prototype for helping people keep walking through freezing episodes, using the Apple Watch they may already own."
+        intro="GaitGuard was built by a founder for his mom, to help people with Parkinson's keep walking through freezing, using the Apple Watch they may already own."
       />
 
       <section className="section !pt-10">
