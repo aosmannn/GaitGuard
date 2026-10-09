@@ -211,7 +211,10 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         syncPendingEvents()
 
         #if DEBUG && !os(watchOS)
-        if ProcessInfo.processInfo.arguments.contains("-seedDemoData") { seedDemoData() }
+        if ProcessInfo.processInfo.arguments.contains("-seedDemoData") {
+            // After WatchConnectivity's own startup sync, which would otherwise overwrite the demo state.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.seedDemoData() }
+        }
         #endif
 
         #if DEBUG
@@ -344,6 +347,15 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
         if let d = cal.date(byAdding: .day, value: -1, to: Date()) { dailyNotes[f.string(from: d)] = "Stiff after a late dose. Doorways were the hardest." }
         dailyNotes[f.string(from: Date())] = "Slept well. Morning walk felt steadier."
+
+        // `-demoMonitoring`: show a live session for screenshots (the simulator has no paired Watch).
+        if ProcessInfo.processInfo.arguments.contains("-demoMonitoring") {
+            isWatchMonitoring = true
+            latestGaitScore = 86
+            sessionStartTime = Date().addingTimeInterval(-12 * 60 - 4)
+            latestStepData = StepData(stepCount: 1284, cadence: 104, distance: 910, timestamp: Date())
+            lastWatchContact = Date().addingTimeInterval(3600)
+        }
     }
     #endif
 
