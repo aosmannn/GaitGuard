@@ -13,9 +13,14 @@
   <img src="https://img.shields.io/badge/watchOS-11.6+-12100E?logo=apple&logoColor=white" alt="watchOS 11.6+" />
   <img src="https://img.shields.io/badge/SwiftUI-FF7A4D?logo=swift&logoColor=white" alt="SwiftUI" />
   <img src="https://img.shields.io/badge/version-1.3-E8C9A0" alt="Version 1.3" />
+  <img src="https://img.shields.io/badge/status-in%20research-A39A90" alt="Status: in research" />
 </p>
 
 ---
+
+> [!NOTE]
+> **Status: in research. Not available yet.**
+> Before release, I'm doing thorough research to make sure GaitGuard is safe and actually helps. Beta testing on **TestFlight** opens once that's finished. It will need an iPhone on iOS 26.2 or later, paired with an Apple Watch on watchOS 11.6 or later.
 
 When walking stalls, the Watch taps a steady rhythm on the wrist to help you keep moving. It learns your walk from a short calibration, asks whether each cue helped, and adjusts from your answers. The iPhone app shows your history and trends.
 
@@ -51,10 +56,6 @@ You can start or stop from either device and the two stay in sync. Settings chan
 7. The **Steadiness score** comes from how regular your stride is and how much of the last 10 minutes you spent frozen.
 
 **High alert** mode is more sensitive and also cues when walking simply stalls. **Exercise** mode is calmer.
-
-## Availability
-
-**Coming soon to TestFlight.** Before release, I'm doing thorough research to make sure GaitGuard is safe and actually helps. Beta testing on TestFlight opens once that's finished. It will need an iPhone on iOS 26.2 or later, paired with an Apple Watch on watchOS 11.6 or later.
 
 ## Project structure
 
