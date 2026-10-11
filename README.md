@@ -52,26 +52,9 @@ You can start or stop from either device and the two stay in sync. Settings chan
 
 **High alert** mode is more sensitive and also cues when walking simply stalls. **Exercise** mode is calmer.
 
-## Getting started
+## Availability
 
-**You'll need**
-- Xcode 26+
-- An iPhone on iOS 26.2+ paired with an Apple Watch on watchOS 11.6+. Real devices are required because WatchConnectivity doesn't work in the simulator.
-- The HealthKit capability enabled for the Watch app in the Apple Developer portal, for background monitoring
-
-**Build and run**
-1. Open `GaitGuardAI/GaitGuardAI.xcodeproj`.
-2. Run the **GaitGuardAI-iPhone** scheme on your iPhone. This installs the Watch app too.
-3. If you're debugging the Watch, run **GaitGuardAI Watch App** on it.
-4. Open both apps and go through onboarding on the phone.
-
-**Demo data:** add the launch arguments `-seedDemoData -demoMonitoring` to the iPhone scheme to fill the app with realistic sample data for screenshots.
-
-**Tests:** the detection logic has a standalone test suite that runs on simulated signals:
-
-```bash
-sh GaitGuardAI/Tests/run.sh
-```
+**Coming soon to TestFlight.** It will need an iPhone on iOS 26.2 or later, paired with an Apple Watch on watchOS 11.6 or later.
 
 ## Project structure
 
