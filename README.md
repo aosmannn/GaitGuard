@@ -1,100 +1,113 @@
-# GaitGuardAI 🛡️
+<p align="center">
+  <img src="branding/gaitguard-logo-1024.png" width="120" alt="GaitGuard logo" />
+</p>
 
-**GaitGuardAI** is an iOS + watchOS app that monitors gait on an Apple Watch and provides rhythmic haptic cueing to help during walking initiation and turning—where freezing of gait (FoG) often occurs. It streams live data to an iPhone companion app for analytics and remote control.
+<h1 align="center">GaitGuard</h1>
 
-This is a cueing aid and prototype. It is not a medical device. Use with supervision before relying on it for safety-critical situations.
+<p align="center">
+  Rhythmic haptic cueing on Apple Watch for people with Parkinson's who experience freezing of gait.
+</p>
 
----
-
-## What GaitGuard Does
-
-### On the Apple Watch
-- **Freeze detection**: Detects when you attempt to start walking or turn but don’t produce steps
-- **Rhythmic haptic cueing**: Metronome-style pulses to help break freezes (different rhythms for start vs turn), with a brief on-screen assist banner
-- **Step tracking**: Live step count, cadence, and distance via CMPedometer
-- **Calibration**: 30-second walk to personalize detection thresholds
-- **Background monitoring**: Uses HealthKit workout sessions so tracking continues when the screen is off
-- **Pager pages**: SCORE / METRICS / TODAY with page dots
-
-### On the iPhone
-- **Home dashboard**: Connection status, Ready vs live gait score, today’s assists, remote **Start/Stop** when the Watch is reachable
-- **History**: Assist timeline with severity labels; daily notes; clear requires confirmation
-- **Trends**: Charts by assist type, hour, and severity (raw XYZ motion under Advanced)
-- **Settings** (formerly Profile): Haptics, detection presets, calibration guide, test vibration, factory reset
-- **Calibration results**: Persisted on the phone and shown after calibration
-- **Synced gait score**: Watch is the source of truth; phone displays the score the Watch sends
+<p align="center">
+  <img src="https://img.shields.io/badge/iOS-26.2+-12100E?logo=apple&logoColor=white" alt="iOS 26.2+" />
+  <img src="https://img.shields.io/badge/watchOS-11.6+-12100E?logo=apple&logoColor=white" alt="watchOS 11.6+" />
+  <img src="https://img.shields.io/badge/SwiftUI-FF7A4D?logo=swift&logoColor=white" alt="SwiftUI" />
+  <img src="https://img.shields.io/badge/version-1.3-E8C9A0" alt="Version 1.3" />
+</p>
 
 ---
 
-## Who It’s For
+When walking stalls, the Watch taps a steady rhythm on the wrist to help you keep moving. It learns your walk from a short calibration, asks whether each cue helped, and adjusts from your answers. The iPhone app shows your history and trends.
 
-People who:
-- Have a foot that “sticks” when starting to walk
-- Struggle to turn without assistance
-- May speed up or lean forward (festination)
+> **GaitGuard is a cueing aid, not a medical device.** It does not diagnose, treat, or prevent any condition, and it does not detect falls or contact anyone. It can miss a freeze or cue when one wasn't needed. Detection has not been tested with real patients yet. Keep Apple Watch Fall Detection and Emergency SOS on if you rely on them, and talk with your care team about how to use it.
 
----
+## Features
 
-## How Detection Works
+**Apple Watch** (runs on its own; the phone doesn't need to be nearby while you walk)
+- **Tick dial home**: a ring of 60 ticks. The score fills the ring and an ember tick sweeps at your cue tempo. Tap the dial to start or stop.
+- **Rhythm cues**: tempo from 60 to 130 bpm, with adjustable beats per cue, haptic style, and strength
+- **"Did it help?"**: a tick or cross after every cue, which makes detection a little more or less sensitive
+- **Beat while walking** (optional): a soft metronome tap while you walk
+- **Pace and Today pages**: cadence, distance, cues, steps, and the last cue
+- **Background monitoring** through a HealthKit workout session, with a warning at 20% battery and an automatic stop at 10%
 
-The app uses Core Motion on the watch:
+**iPhone**
+- **Home**: the live session with the Steadiness score, time, steps, and cadence, plus cues today with an hourly chart
+- **History**: every cue grouped by day, showing start or turn, strength, freeze length, and whether it helped. Includes daily notes, filters, and CSV export.
+- **Trends**: week, month, or 3-month view with comparison to the previous period, time-of-day pattern, and strength split
+- **Tune**: cue settings, detection mode (Everyday, Exercise, High alert, Custom), test cue, calibration, export, and reset
+- **Onboarding**: feel the beat on the phone, pick a pace, pair the Watch live, do the calibration walk, and accept the safety notice
 
-- **Sensors**: `CMDeviceMotion`, `userAcceleration`, `rotationRate` (yaw for turning)
-- **Sampling**: ~50 Hz
-- **Logic**: Detects movement attempts without step cadence → triggers haptic cue
-- **Calibration**: Personalizes the baseline threshold from a 30-second walk
+You can start or stop from either device and the two stay in sync. Settings changed on the phone apply to the Watch. There's no account, and data stays on your devices.
 
----
+## How detection works
 
-## Setup & Running
+1. The Watch reads the motion sensor at **50 Hz** with gravity removed.
+2. Every 0.5 s it looks at the last 3 s of motion and separates the **walking rhythm** from **fast trembling**.
+3. It only flags a possible freeze if you **were just walking**, the rhythm has **stopped**, and trembling-like motion lasts **~1.5 s**. Gesturing, eating, or sitting still shouldn't trigger it.
+4. **Turns** trigger a cue only for a turn of about 70° where your stride also slows down. Smooth turns while walking are ignored.
+5. A cue plays a short run of taps at your tempo (default **100 bpm × 4 beats**). It can repeat while the freeze continues, and the freeze length is saved to History.
+6. **Calibration** is a 30-second walk. It checks that you actually walked, records your pace, sets your thresholds, and suggests a matching tempo.
+7. The **Steadiness score** comes from how regular your stride is and how much of the last 10 minutes you spent frozen.
 
-### Prerequisites
-- Xcode 15+
-- watchOS 10+ / iOS 17+
-- Physical Apple Watch paired with iPhone (WatchConnectivity needs real devices)
+**High alert** mode is more sensitive and also cues when walking simply stalls. **Exercise** mode is calmer.
 
-### Build & Run
-1. Open `GaitGuardAI/GaitGuardAI.xcodeproj` in Xcode
-2. Run **GaitGuardAI-iPhone** on your iPhone (this installs the Watch app too)
-3. Run **GaitGuard Watch App** on your paired Apple Watch
-4. Launch both apps and wait for WatchConnectivity to connect
-5. Start monitoring from the Watch **or** from iPhone Home/Settings when the Watch is reachable
+## Getting started
 
-### HealthKit (for background monitoring)
-- Enable the HealthKit capability for the Watch app in the Apple Developer portal
-- The app uses `HKWorkoutSession` to keep monitoring when the screen is off
+**You'll need**
+- Xcode 26+
+- An iPhone on iOS 26.2+ paired with an Apple Watch on watchOS 11.6+. Real devices are required because WatchConnectivity doesn't work in the simulator.
+- The HealthKit capability enabled for the Watch app in the Apple Developer portal, for background monitoring
 
----
+**Build and run**
+1. Open `GaitGuardAI/GaitGuardAI.xcodeproj`.
+2. Run the **GaitGuardAI-iPhone** scheme on your iPhone. This installs the Watch app too.
+3. If you're debugging the Watch, run **GaitGuardAI Watch App** on it.
+4. Open both apps and go through onboarding on the phone.
 
-## Project Structure
+**Demo data:** add the launch arguments `-seedDemoData -demoMonitoring` to the iPhone scheme to fill the app with realistic sample data for screenshots.
+
+**Tests:** the detection logic has a standalone test suite that runs on simulated signals:
+
+```bash
+sh GaitGuardAI/Tests/run.sh
+```
+
+## Project structure
 
 ```
 GaitGuardAI/
 ├── GaitGuardAI Watch App/
-│   ├── ContentView.swift          # Watch UI (SCORE / METRICS / TODAY)
-│   ├── MotionDetector.swift       # Motion processing, freeze detection, cueing, step counting
-│   ├── GaitTrackingManager.swift  # HKWorkoutSession for background
+│   ├── ContentView.swift            # Dial, Pace, Today, calibration, "Did it help?"
+│   ├── MotionDetector.swift         # Sensor loop, cueing, steps, battery guard
+│   ├── GaitAnalysis.swift           # Pure detection logic (rhythm vs. trembling, turns, profile)
+│   ├── GaitTrackingManager.swift    # HKWorkoutSession for background monitoring
 │   └── GaitGuardAIApp.swift
 ├── GaitGuardAI-iPhone/
-│   ├── ContentView.swift          # Home + History
-│   ├── AnalyticsView.swift        # Trends
-│   ├── RemoteControlsView.swift   # Settings
+│   ├── ContentView.swift            # Tab shell
+│   ├── SummaryView.swift            # Home
+│   ├── HistoryView.swift
+│   ├── TrendsView.swift
+│   ├── SettingsView.swift           # Tune
+│   ├── CalibrationView.swift
+│   ├── OnboardingView.swift
+│   ├── Components.swift             # Floating tab bar and shared controls
 │   └── GaitGuardAIiPhoneApp.swift
-└── Shared/
-    └── WatchConnectivityManager.swift  # Watch ↔ iPhone sync (score, assists, remote start/stop)
+├── Shared/
+│   ├── WatchConnectivityManager.swift   # iPhone ↔ Watch sync, models, Steadiness score
+│   └── DesignSystem.swift               # Theme, tick dial
+└── Tests/
+    ├── main.swift                   # Detection tests
+    └── run.sh
+branding/                            # Logo, palette, website brief
 ```
 
----
+## Roadmap
 
-## Safety Notes
-
-- Turning difficulty can be high fall-risk. Use as a cueing aid, not a replacement for supervision.
-- Consider involving a clinician or PT. Rhythmic cueing works best with taught strategies (staged turns, weight shift).
-- The app does not detect falls or call emergency contacts.
-- **Not a medical device**—use with supervision and professional guidance.
-
----
+- Medication log with ON/OFF correlation
+- Care-team PDF report
+- Watch complication
 
 ## License
 
-MIT License. See LICENSE for details.
+MIT
