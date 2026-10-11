@@ -54,7 +54,7 @@ You can start or stop from either device and the two stay in sync. Settings chan
 
 ## Availability
 
-**Coming soon to TestFlight.** It will need an iPhone on iOS 26.2 or later, paired with an Apple Watch on watchOS 11.6 or later.
+**Coming soon to TestFlight.** Before release, I'm doing thorough research to make sure GaitGuard is safe and actually helps. Beta testing on TestFlight opens once that's finished. It will need an iPhone on iOS 26.2 or later, paired with an Apple Watch on watchOS 11.6 or later.
 
 ## Project structure
 
